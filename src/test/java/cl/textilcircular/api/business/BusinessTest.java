@@ -153,6 +153,19 @@ class BusinessTest {
     }
 
     @Test
+    void invalidEditLeavesTheBusinessUntouched() {
+        Business business = approved();
+
+        assertThatThrownBy(() -> business.edit("Otro nombre", "Otra", null, commune(1L), List.of(), NOW))
+                .isInstanceOf(ValidationException.class);
+
+        assertThat(business.getName()).isEqualTo("Hilos de Barrio");
+        assertThat(business.getDescription()).isEqualTo("Arreglos de ropa");
+        assertThat(business.getCommune().getId()).isEqualTo(102L);
+        assertThat(business.getStatus()).isEqualTo(BusinessStatus.APPROVED);
+    }
+
+    @Test
     void hidingDoesNotTriggerReview() {
         Business business = approved();
 
