@@ -147,6 +147,40 @@ class UserAccountTest {
         assertThatThrownBy(() -> account.updateProfile("new@mail.cl", "")).isInstanceOf(ValidationException.class);
     }
 
+    @Test
+    void inactiveAccountsCannotBeEdited() {
+        UserAccount suspended = customer();
+        suspended.suspendBy(admin());
+        assertThatThrownBy(() -> suspended.updateProfile("x@b.cl", "X")).isInstanceOf(AccountNotActiveException.class);
+        assertThatThrownBy(() -> suspended.changePassword("Demo1234", "Nueva1234", ENCODER))
+                .isInstanceOf(AccountNotActiveException.class);
+
+        UserAccount deleted = customer();
+        deleted.delete(NOW);
+        assertThatThrownBy(() -> deleted.resetPassword("Nueva1234", ENCODER)).isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void reactivationRulesMirrorSuspension() {
+        UserAccount account = customer();
+        UserAccount admin = admin();
+
+        assertThatThrownBy(() -> account.reactivateBy(admin)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> admin.reactivateBy(admin)).isInstanceOf(ForbiddenException.class);
+
+        UserAccount suspendedAdmin = admin();
+        suspendedAdmin.suspendBy(admin);
+        assertThatThrownBy(() -> account.suspendBy(suspendedAdmin)).isInstanceOf(ForbiddenException.class);
+
+        account.deactivate(NOW);
+        account.reactivateBy(admin);
+        assertThat(account.getStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(account.getDeactivatedAt()).isNull();
+
+        account.delete(NOW);
+        assertThatThrownBy(() -> account.reactivateBy(admin)).isInstanceOf(ConflictException.class);
+    }
+
     static UserAccount admin() {
         return UserAccount.registerAdministrator("admin@tc.cl", "Demo1234", "Admin", ENCODER, NOW);
     }

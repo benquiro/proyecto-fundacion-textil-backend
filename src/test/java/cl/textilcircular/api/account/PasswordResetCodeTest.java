@@ -38,13 +38,27 @@ class PasswordResetCodeTest {
     }
 
     @Test
+    void codeExpiresExactlyAtItsDeadline() {
+        assertThatThrownBy(() -> issued.code().redeem(issued.rawCode(), NOW.plus(Duration.ofMinutes(15))))
+                .hasMessage("El código expiró o ya no es válido");
+    }
+
+    @Test
+    void missingCodeCountsAsAWrongAttempt() {
+        assertThatThrownBy(() -> issued.code().redeem(null, NOW)).hasMessage("El código no es correcto");
+        assertThat(issued.code().getFailedAttempts()).isEqualTo(1);
+    }
+
+    @Test
     void codeLocksAfterFiveWrongAttempts() {
         String wrong = issued.rawCode().equals("000000") ? "111111" : "000000";
         for (int i = 0; i < 5; i++) {
             assertThatThrownBy(() -> issued.code().redeem(wrong, NOW)).hasMessage("El código no es correcto");
         }
 
+        assertThat(issued.code().getFailedAttempts()).isEqualTo(PasswordResetCode.MAX_ATTEMPTS);
         assertThatThrownBy(() -> issued.code().redeem(issued.rawCode(), NOW))
                 .hasMessage("El código expiró o ya no es válido");
+        assertThat(issued.code().getFailedAttempts()).isEqualTo(PasswordResetCode.MAX_ATTEMPTS);
     }
 }

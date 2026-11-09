@@ -137,11 +137,13 @@ public class UserAccount extends AuditedEntity {
     }
 
     public void updateProfile(String email, String alias) {
+        ensureActive();
         this.email = Validators.email(email);
         this.alias = validAlias(role, alias);
     }
 
     public void changePassword(String currentPassword, String newPassword, PasswordEncoder encoder) {
+        ensureActive();
         if (currentPassword == null || !encoder.matches(currentPassword, passwordHash)) {
             throw new ValidationException("currentPassword", "La contraseña actual no es correcta");
         }
@@ -157,6 +159,9 @@ public class UserAccount extends AuditedEntity {
 
     /** Sets a new password without the current one (recovery flow, after a valid reset code). */
     public void resetPassword(String newPassword, PasswordEncoder encoder) {
+        if (status == AccountStatus.DELETED) {
+            throw AccountErrors.invalidStatus("La cuenta fue eliminada");
+        }
         this.passwordHash = encoder.encode(Validators.password(newPassword));
     }
 
