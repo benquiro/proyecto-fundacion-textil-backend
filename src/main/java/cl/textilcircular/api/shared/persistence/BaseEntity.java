@@ -26,4 +26,19 @@ public abstract class BaseEntity {
     public final int hashCode() {
         return Hibernate.getClass(this).hashCode();
     }
+
+    /**
+     * Same row, compared by id without initializing lazy proxies. Before the first flush only the
+     * same instance matches.
+     */
+    public static boolean sameEntity(BaseEntity a, BaseEntity b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        Long id = a.getId();
+        return id != null && id.equals(b.getId());
+    }
 }
