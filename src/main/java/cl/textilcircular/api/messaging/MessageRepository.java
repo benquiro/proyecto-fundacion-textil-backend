@@ -1,5 +1,6 @@
 package cl.textilcircular.api.messaging;
 
+import cl.textilcircular.api.account.UserAccount;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,16 +16,22 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     List<Message> findByConversationIdOrderBySentAtAscIdAsc(Long conversationId);
 
+    /** Marks as read what the other participant sent; refuses readers outside the conversation. */
+    default int markReadBy(Conversation conversation, UserAccount reader, Instant now) {
+        conversation.requireParticipant(reader);
+        return markUnreadFromOthers(conversation.getId(), reader.getId(), now);
+    }
+
     /**
-     * Marks as read the messages the other participant sent. Callers check that the reader is a
-     * participant ({@link Conversation#requireParticipant}) before calling.
+     * Low-level update behind {@link #markReadBy}; does not check participation. {@code read_at}
+     * is never earlier than {@code sent_at}, even if the sender's clock was ahead.
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
-            update Message m set m.readAt = :now
+            update Message m set m.readAt = greatest(m.sentAt, :now)
             where m.conversation.id = :conversationId and m.sender.id <> :readerId and m.readAt is null
             """)
-    int markRead(Long conversationId, Long readerId, Instant now);
+    int markUnreadFromOthers(Long conversationId, Long readerId, Instant now);
 
     /** Total unread messages for the navigation badge. */
     @Query("""

@@ -2,6 +2,7 @@ package cl.textilcircular.api.messaging;
 
 import cl.textilcircular.api.account.UserAccount;
 import cl.textilcircular.api.business.Business;
+import cl.textilcircular.api.shared.error.ForbiddenException;
 import cl.textilcircular.api.support.PersistedData;
 import cl.textilcircular.api.support.RepositoryTest;
 import jakarta.persistence.EntityManager;
@@ -91,11 +92,23 @@ class MessagingRepositoriesTest {
         assertThat(messages.countUnreadFor(client.getId())).isEqualTo(2);
         assertThat(messages.countUnreadFor(owner.getId())).isEqualTo(1);
 
-        int marked = messages.markRead(conversation.getId(), client.getId(), NOW.plusSeconds(60));
+        int marked = messages.markReadBy(conversation, client, NOW.plusSeconds(60));
 
         assertThat(marked).isEqualTo(2);
         assertThat(messages.countUnreadFor(client.getId())).isZero();
         assertThat(messages.countUnreadFor(owner.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void markReadRejectsOutsidersAndToleratesClockSkew() {
+        Conversation conversation = conversation(client, business);
+        send(conversation, owner, "Enviado por un reloj adelantado", NOW.plusSeconds(30));
+        em.flush();
+
+        assertThatThrownBy(() -> messages.markReadBy(conversation, data.customer(), NOW))
+                .isInstanceOf(ForbiddenException.class);
+        assertThat(messages.markReadBy(conversation, client, NOW)).isEqualTo(1);
+        assertThat(messages.countUnreadFor(client.getId())).isZero();
     }
 
     @Test
