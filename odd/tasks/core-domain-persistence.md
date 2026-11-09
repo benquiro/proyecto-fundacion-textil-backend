@@ -23,14 +23,14 @@ Branch: `feat/core-domain-persistence` · Delivery strategy: `ask-on-risk` (chai
 
 | ID | Specs | Route | Status | Commit / evidence |
 |----|-------|-------|--------|-------------------|
-| T1 | S2 S3 S6 S7 | inline | pending | foundation: pom, config, shared, Testcontainers base, reference module + reference data |
-| T2 | S4 S5 | inline | pending | account: user_account, entrepreneur, refresh_token, password_reset_code |
-| T3 | S4 S5 | inline | pending | business: business, services, reviews (vote lock), v_catalog + directory search |
-| T4 | S4 S5 | inline | pending | product: product, photos, attributes |
-| T5 | S4 S5 | inline | pending | messaging: conversation, message, report, inbox/unread queries |
-| T6 | S4 S5 S6 | inline | pending | outreach, media_file, analytics_event |
-| T7 | S7 | inline | pending | dev demo seed |
-| T8 | all | verifier | pending | full suite + independent verifier (Risk items 2 and 4) |
+| T1 | S2 S3 S6 S7 | inline | done | `eaab05e` foundation + reference data; `./mvnw clean test` 12/12 green; assess medium, under_budget |
+| T2 | S4 S5 | inline | done | `2b8a87f` account; RED = 16 missing symbols, GREEN 39/39; review granted, approved + acknowledged (lineage review-1c246425e38c7963), 3 advisory findings fixed in `87a1f67` (assess medium, under_budget) |
+| T3 | S4 S5 | inline | done | `1417e12` business; RED = 14 missing symbols, GREEN 67/67; lock probe: without `@Lock` the concurrency test fails (PENDING), with it passes; review granted, approved + acknowledged (review-e4d3bed72db1a395); advisory partial-apply fixed in `729a7c2` (RED observed) |
+| T4 | S4 S5 | inline | done | `d66821a` product; RED = 8 missing symbols, GREEN 80/80; review granted, approved + acknowledged (review-1c672c2aa6a78093); advisory test gaps covered in `2a26ad4` |
+| T5 | S4 S5 | inline | done | `5fbf570` messaging; RED = 16 missing symbols, GREEN 102/102; review approved + acknowledged (review-2d1caa25b759dcb5); advisories fixed in `6164fa3` (guarded markReadBy, clock-skew clamp) |
+| T6 | S4 S5 S6 | inline | done | `5fefe37` outreach/media/analytics; RED = 12 missing symbols, GREEN 117/117; review approved + acknowledged (review-0b05c5189368e231); advisories fixed in `80dbea1` (image URL scheme check, anonymous search events) |
+| T7 | S7 | inline | done | `536a4a7` dev seed (repeatable, idempotent) + README; DemoSeedTest 5/5; `./mvnw spring-boot:run -Dspring-boot.run.profiles=dev` booted and applied 8 migrations; assess medium, under_budget |
+| T8 | all | verifier | done | verifier: S1-S3, S6, S7 PASS; S4/S5 blockers B1 (take-down, account and entrepreneur profile mutated before validation) and B2 (6 FKs without index); one correction batch `66092dc` (+ V8, password 72-byte cap, media dot segments, suspended entrepreneur guard); recheck = verifier probes 14/14 pass; review approved + acknowledged (review-3879323d304c094e); message fix `bbd1e22`; final `./mvnw test` 140/140 |
 
 Route evidence: units depend on each other in sequence (business → account, product → business, messaging → business/product), so no Writer trigger (parallel independent units) holds; all writes inline.
 
@@ -39,3 +39,6 @@ Route evidence: units depend on each other in sequence (business → account, pr
 - **L1** (2026-11-09) User: "Con el flujo ODD me ayudas a implementar el core del backend, hablo de todo lo que sería el: - Dominio - BD - Repositorio También antes de la implementación analiza si el modelo de la BD es el más optimo, ya que fue hecho para funcionar, si necesita modificacione o adaptarse, comentamelo - La arquitectura será un monolito - Se pueden agregar más dependencias según el caso y lo que veas que sea lo más optimo y recomendable. Por ejemplo ahora te recomiendo que agreges la dependencia MapStruct, porque ayuda bastante."
 - **L2** (2026-11-09) DB analysis presented (types, integrity, indexes, concurrency race on votes, `message.product_id`). User: "Los cambios del modelo los apruebo, sobre la arquitectura, será monolito pero me parece sobreingeniería hacer una arquitectura hexagonal, a lo mucho uilizamos vertical slices". Hexagonal dropped; ArchUnit dropped.
 - **L3** Forecast ~4000 authored lines (generated seed SQL excluded) → over the 400-line budget; linear work-unit commits, chain strategy asked before any PR.
+- **L4** Decisions while implementing: any substantive business edit (also while PENDING) starts a new round so old votes never approve new content; admin take-down is a REJECTED review in its own round; `product` has no paired status timestamp, so no status/timestamp CHECK applies there (price, enums and non-blank texts are checked). A stale `target/` from an earlier session held old migrations; `./mvnw clean` fixed it.
+- **L5** Review advisories accepted as in-scope fixes: inactive accounts cannot be edited; edits validate before applying; mark-read guarded in the repository and clamped to `sent_at`; image links limited to http(s) or `/media/` paths (shared `Validators.url`); directory search events never store the actor (free-text privacy). Outreach body bounded at 5000 characters (assumption: the app has no limit).
+- **L6** Verifier advisories left open (not blockers): several reset codes can be open at once (the recovery slice must revoke older codes), `Conversation.send` does not re-check that the business is still public or the product not deleted, `Business.register/edit` take an unused `now`. V1's comment about ids starting at 1000 is corrected in V8 (pooled optimizer starts at 951); V1-V7 were not edited because the local dev database already applied them.
