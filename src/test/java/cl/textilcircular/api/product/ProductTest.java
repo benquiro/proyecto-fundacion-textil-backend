@@ -2,6 +2,7 @@ package cl.textilcircular.api.product;
 
 import cl.textilcircular.api.account.Entrepreneur;
 import cl.textilcircular.api.business.Business;
+import cl.textilcircular.api.business.ReviewDecision;
 import cl.textilcircular.api.shared.error.ConflictException;
 import cl.textilcircular.api.shared.error.ForbiddenException;
 import cl.textilcircular.api.shared.error.ValidationException;
@@ -11,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static cl.textilcircular.api.support.Fixtures.NOW;
+import static cl.textilcircular.api.support.Fixtures.administrator;
 import static cl.textilcircular.api.support.Fixtures.commune;
 import static cl.textilcircular.api.support.Fixtures.entrepreneur;
 import static cl.textilcircular.api.support.Fixtures.service;
@@ -106,6 +108,45 @@ class ProductTest {
     @Test
     void productIsPublicOnlyWhileActiveAndItsBusinessIsPublic() {
         Product product = product();
-        assertThat(product.isPublic()).isFalse(); // business still pending
+        assertThat(product.isPublic()).as("business still pending").isFalse();
+
+        business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
+        business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
+        assertThat(product.isPublic()).isTrue();
+
+        product.hide(owner.getAccount());
+        assertThat(product.isPublic()).as("hidden").isFalse();
+        product.show(owner.getAccount());
+        product.delete(owner.getAccount(), NOW);
+        assertThat(product.isPublic()).as("deleted").isFalse();
+    }
+
+    @Test
+    void rejectedUpdateLeavesTheProductUntouched() {
+        Product product = product();
+
+        assertThatThrownBy(() -> product.update(owner.getAccount(), "Nuevo", "Otra", 1L, List.of("https://img/9.jpg"),
+                new ProductAttributes(null, null, "x".repeat(101), null), NOW))
+                .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("material");
+
+        assertThat(product.getTitle()).isEqualTo("Chaqueta");
+        assertThat(product.getPhotos()).extracting(ProductPhoto::getUrl).containsExactly("https://img/1.jpg", "https://img/2.jpg");
+    }
+
+    @Test
+    void failurePathsOfOwnershipAndDeletion() {
+        Product product = product();
+        Entrepreneur other = entrepreneur();
+
+        assertThatThrownBy(() -> product.update(other.getAccount(), "T", "D", null, List.of("https://img/1.jpg"),
+                ProductAttributes.NONE, NOW)).isInstanceOf(ForbiddenException.class);
+
+        product.delete(owner.getAccount(), NOW);
+        assertThatThrownBy(() -> product.hide(owner.getAccount())).isInstanceOf(ConflictException.class);
+
+        business.softDelete(NOW);
+        assertThatThrownBy(() -> Product.create(business, owner.getAccount(), "T", "D", null,
+                List.of("https://img/1.jpg"), ProductAttributes.NONE, NOW))
+                .isInstanceOf(ConflictException.class);
     }
 }
