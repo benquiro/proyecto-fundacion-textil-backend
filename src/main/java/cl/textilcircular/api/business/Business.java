@@ -185,9 +185,10 @@ public class Business extends AuditedEntity {
         if (status != BusinessStatus.APPROVED) {
             throw BusinessErrors.notPublished();
         }
-        reviewRound++;
-        BusinessReview review = BusinessReview.cast(this, administrator, reviewRound, ReviewDecision.REJECTED,
+        // Validate the reason and comment before touching the round.
+        BusinessReview review = BusinessReview.cast(this, administrator, reviewRound + 1, ReviewDecision.REJECTED,
                 reason, comment, now);
+        reviewRound++;
         reviews.add(review);
         status = BusinessStatus.REJECTED;
         approvedAt = null;

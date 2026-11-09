@@ -70,6 +70,7 @@ public class Entrepreneur extends BaseEntity {
 
     /** Everything but the RUT can change. */
     public void updateProfile(String firstName, String lastName, AgeRange ageRange, Gender gender) {
+        account.ensureActive();
         applyProfile(firstName, lastName, ageRange, gender);
     }
 
@@ -86,9 +87,14 @@ public class Entrepreneur extends BaseEntity {
     }
 
     private void applyProfile(String firstName, String lastName, AgeRange ageRange, Gender gender) {
-        this.firstName = Validators.text("firstName", firstName, Validators.PERSON_NAME_MAX, "tu nombre");
-        this.lastName = Validators.text("lastName", lastName, Validators.PERSON_NAME_MAX, "tus apellidos");
-        this.ageRange = Validators.required("ageRangeId", ageRange, "Elige tu rango de edad");
-        this.gender = Validators.required("genderId", gender, "Elige tu género");
+        // Validate everything first, so a rejected update leaves the profile as it was.
+        String validFirstName = Validators.text("firstName", firstName, Validators.PERSON_NAME_MAX, "tu nombre");
+        String validLastName = Validators.text("lastName", lastName, Validators.PERSON_NAME_MAX, "tus apellidos");
+        AgeRange validAgeRange = Validators.required("ageRangeId", ageRange, "Elige tu rango de edad");
+        Gender validGender = Validators.required("genderId", gender, "Elige tu género");
+        this.firstName = validFirstName;
+        this.lastName = validLastName;
+        this.ageRange = validAgeRange;
+        this.gender = validGender;
     }
 }

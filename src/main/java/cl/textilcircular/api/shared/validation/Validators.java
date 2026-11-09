@@ -29,7 +29,10 @@ public final class Validators {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final Pattern RUT = Pattern.compile("^\\d{7,8}-[\\dK]$");
     private static final Pattern WEB_URL = Pattern.compile("^https?://[^\\s/?#]+[^\\s]*$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern MEDIA_PATH = Pattern.compile("^/media/[A-Za-z0-9._-]+$");
+    /** One file name, never starting with a dot ("..", ".hidden"). */
+    private static final Pattern MEDIA_PATH = Pattern.compile("^/media/[A-Za-z0-9_-][A-Za-z0-9._-]*$");
+    /** BCrypt only reads the first 72 bytes of a password. */
+    private static final int PASSWORD_MAX_BYTES = 72;
 
     private Validators() {
     }
@@ -70,9 +73,12 @@ public final class Validators {
         return value;
     }
 
-    /** 8 or more characters, with at least one letter and one digit. Returns the raw password. */
+    /** 8 to 72 bytes, with at least one letter and one digit. Returns the raw password. */
     public static String password(String raw) {
         String value = raw == null ? "" : raw;
+        if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
+            throw new ValidationException("password", "La contraseña admite hasta 72 caracteres");
+        }
         boolean hasLetter = value.chars().anyMatch(Character::isLetter);
         boolean hasDigit = value.chars().anyMatch(Character::isDigit);
         if (value.length() < 8 || !hasLetter || !hasDigit) {

@@ -138,8 +138,10 @@ public class UserAccount extends AuditedEntity {
 
     public void updateProfile(String email, String alias) {
         ensureActive();
-        this.email = Validators.email(email);
-        this.alias = validAlias(role, alias);
+        String validEmail = Validators.email(email);
+        String validAlias = validAlias(role, alias);
+        this.email = validEmail;
+        this.alias = validAlias;
     }
 
     public void changePassword(String currentPassword, String newPassword, PasswordEncoder encoder) {
