@@ -68,6 +68,13 @@ class ProductTest {
     }
 
     @Test
+    void photosMustBeWebOrMediaLinks() {
+        assertThatThrownBy(() -> Product.create(business, owner.getAccount(), "T", "D", null,
+                List.of("https://img/1.jpg", "data:image/png;base64,AA"), ProductAttributes.NONE, NOW))
+                .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("photoUrls");
+    }
+
+    @Test
     void priceIsOptionalButNotNegative() {
         assertThatThrownBy(() -> Product.create(business, owner.getAccount(), "T", "D", -1L,
                 List.of("https://img/1.jpg"), ProductAttributes.NONE, NOW))

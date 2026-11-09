@@ -19,14 +19,14 @@ class AnalyticsEventTest {
 
     @Test
     void searchKeepsItsFiltersAndAShortTerm() {
-        AnalyticsEvent event = AnalyticsEvent.directorySearch(null, "  " + "a".repeat(120) + " ", 13L, null, 4L, NOW);
+        AnalyticsEvent event = AnalyticsEvent.directorySearch("  " + "a".repeat(120) + " ", 13L, null, 4L, NOW);
 
         assertThat(event.getType()).isEqualTo(AnalyticsEventType.DIRECTORY_SEARCH);
-        assertThat(event.getActorUserId()).isNull();
+        assertThat(event.getActorUserId()).as("search terms are never linked to a user").isNull();
         assertThat(event.getSearchTerm()).hasSize(100);
         assertThat(event.getRegionId()).isEqualTo(13L);
         assertThat(event.getServiceId()).isEqualTo(4L);
-        assertThat(AnalyticsEvent.directorySearch(null, " ", null, null, null, NOW).getSearchTerm()).isNull();
+        assertThat(AnalyticsEvent.directorySearch(" ", null, null, null, NOW).getSearchTerm()).isNull();
     }
 
     @Test

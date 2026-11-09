@@ -107,9 +107,7 @@ public class OutreachContent extends AuditedEntity {
         String validBody = needsBody
                 ? Validators.text("body", body, Validators.CONTENT_BODY_MAX, "el texto")
                 : Validators.optionalText("body", body, Validators.CONTENT_BODY_MAX, "el texto");
-        String validImage = validType == ContentType.IMAGE
-                ? Validators.text("imageUrl", imageUrl, Validators.URL_MAX, "la imagen")
-                : Validators.optionalText("imageUrl", imageUrl, Validators.URL_MAX, "la imagen");
+        String validImage = Validators.url("imageUrl", imageUrl, validType == ContentType.IMAGE, "la imagen");
         Instant validEventAt = isEvent ? Validators.required("eventAt", eventAt, "Elige la fecha del evento") : null;
         String validLocation = isEvent
                 ? Validators.optionalText("eventLocation", eventLocation, Validators.EVENT_LOCATION_MAX, "el lugar")

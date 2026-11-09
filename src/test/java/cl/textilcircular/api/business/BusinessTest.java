@@ -54,6 +54,13 @@ class BusinessTest {
     }
 
     @Test
+    void photoMustBeAWebOrMediaLink() {
+        assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", "javascript:alert(1)", commune(1L),
+                List.of(service(1L)), NOW))
+                .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("photoUrl");
+    }
+
+    @Test
     void twoApprovalsPublishTheBusiness() {
         Business business = pending();
 

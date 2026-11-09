@@ -28,6 +28,8 @@ public final class Validators {
 
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final Pattern RUT = Pattern.compile("^\\d{7,8}-[\\dK]$");
+    private static final Pattern WEB_URL = Pattern.compile("^https?://[^\\s/?#]+[^\\s]*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern MEDIA_PATH = Pattern.compile("^/media/[A-Za-z0-9._-]+$");
 
     private Validators() {
     }
@@ -110,6 +112,18 @@ public final class Validators {
             case 10 -> 'K';
             default -> Character.forDigit(result, 10);
         };
+    }
+
+    /**
+     * Image link: an http(s) URL or a file of the local media storage ({@code /media/...}).
+     * Anything else (javascript:, data:, relative paths) is rejected because clients render it.
+     */
+    public static String url(String field, String raw, boolean required, String label) {
+        String value = required ? text(field, raw, URL_MAX, label) : optionalText(field, raw, URL_MAX, label);
+        if (value != null && !WEB_URL.matcher(value).matches() && !MEDIA_PATH.matcher(value).matches()) {
+            throw new ValidationException(field, "Ingresa un enlace válido para " + label);
+        }
+        return value;
     }
 
     /** Prices are optional CLP amounts and cannot be negative. */

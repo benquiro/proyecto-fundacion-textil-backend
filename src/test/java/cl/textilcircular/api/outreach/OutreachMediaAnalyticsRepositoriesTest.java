@@ -79,7 +79,7 @@ class OutreachMediaAnalyticsRepositoriesTest {
         Business business = data.approvedBusiness("Taller", "Desc", 102L, 1L);
         events.save(AnalyticsEvent.businessView(null, business, NOW));
         events.save(AnalyticsEvent.businessView(null, business, NOW.plus(Duration.ofDays(2))));
-        events.save(AnalyticsEvent.directorySearch(null, "bolso", null, null, null, NOW));
+        events.save(AnalyticsEvent.directorySearch("bolso", null, null, null, NOW));
         em.flush();
 
         assertThat(events.countByTypeAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(

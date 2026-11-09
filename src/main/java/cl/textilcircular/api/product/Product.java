@@ -174,7 +174,7 @@ public class Product extends AuditedEntity {
             throw new ValidationException("photoUrls", "Agrega entre 1 y 5 fotos");
         }
         return photoUrls.stream()
-                .map(url -> Validators.text("photoUrls", url, Validators.URL_MAX, "la foto"))
+                .map(url -> Validators.url("photoUrls", url, true, "la foto"))
                 .toList();
     }
 

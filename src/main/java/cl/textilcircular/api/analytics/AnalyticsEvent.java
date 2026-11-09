@@ -65,9 +65,13 @@ public class AnalyticsEvent {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 
-    public static AnalyticsEvent directorySearch(UserAccount actor, String term, Long regionId, Long communeId,
+    /**
+     * Search terms are free text and may contain personal data, so search events are never
+     * linked to the user who searched.
+     */
+    public static AnalyticsEvent directorySearch(String term, Long regionId, Long communeId,
                                                  Long serviceId, Instant now) {
-        AnalyticsEvent event = of(AnalyticsEventType.DIRECTORY_SEARCH, actor, now);
+        AnalyticsEvent event = of(AnalyticsEventType.DIRECTORY_SEARCH, null, now);
         event.searchTerm = shorten(term);
         event.regionId = regionId;
         event.communeId = communeId;

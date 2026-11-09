@@ -52,6 +52,19 @@ class ValidatorsTest {
     }
 
     @Test
+    void imageUrlsMustBeWebOrLocalMedia() {
+        assertThat(Validators.url("photoUrl", " https://images.unsplash.com/a.jpg ", true, "la foto"))
+                .isEqualTo("https://images.unsplash.com/a.jpg");
+        assertThat(Validators.url("photoUrl", "/media/0b9f.png", true, "la foto")).isEqualTo("/media/0b9f.png");
+        assertThat(Validators.url("photoUrl", " ", false, "la foto")).isNull();
+        for (String bad : new String[]{"javascript:alert(1)", "ftp://x/y.png", "data:image/png;base64,AA", "//evil.com/a.png", "/etc/passwd"}) {
+            assertThatThrownBy(() -> Validators.url("photoUrl", bad, true, "la foto"))
+                    .isInstanceOf(ValidationException.class).hasMessage("Ingresa un enlace válido para la foto");
+        }
+        assertThatThrownBy(() -> Validators.url("photoUrl", null, true, "la foto")).hasMessage("Ingresa la foto");
+    }
+
+    @Test
     void priceCannotBeNegative() {
         assertThat(Validators.price(null)).isNull();
         assertThat(Validators.price(0L)).isZero();

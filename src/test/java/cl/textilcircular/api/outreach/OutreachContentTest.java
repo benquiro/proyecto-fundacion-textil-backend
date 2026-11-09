@@ -40,6 +40,12 @@ class OutreachContentTest {
     }
 
     @Test
+    void imageMustBeAWebOrMediaLink() {
+        assertThatThrownBy(() -> OutreachContent.publish(admin, ContentType.IMAGE, null, null, "javascript:alert(1)", null, null))
+                .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("imageUrl");
+    }
+
+    @Test
     void eventKeepsDateAndPlace() {
         OutreachContent event = OutreachContent.publish(admin, ContentType.EVENT, " Feria textil ", null, null, eventAt, " Plaza Ñuñoa ");
 
