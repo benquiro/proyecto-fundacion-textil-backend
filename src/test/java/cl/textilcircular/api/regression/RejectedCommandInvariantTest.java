@@ -76,8 +76,11 @@ class RejectedCommandInvariantTest {
 
         assertThatThrownBy(() -> Validators.password(tooLong))
                 .isInstanceOf(ValidationException.class)
-                .hasMessage("La contraseña admite hasta 72 caracteres");
+                .hasMessage("La contraseña es demasiado larga");
         assertThat(Validators.password("Aa1" + "x".repeat(69))).hasSize(72);
+        // The limit is BCrypt's 72 bytes: 37 two-byte letters are 74 bytes.
+        assertThatThrownBy(() -> Validators.password("1" + "ñ".repeat(36)))
+                .hasMessage("La contraseña es demasiado larga");
     }
 
     @Test

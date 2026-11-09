@@ -77,7 +77,7 @@ public final class Validators {
     public static String password(String raw) {
         String value = raw == null ? "" : raw;
         if (value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
-            throw new ValidationException("password", "La contraseña admite hasta 72 caracteres");
+            throw new ValidationException("password", "La contraseña es demasiado larga");
         }
         boolean hasLetter = value.chars().anyMatch(Character::isLetter);
         boolean hasDigit = value.chars().anyMatch(Character::isDigit);
