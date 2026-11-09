@@ -2,6 +2,8 @@ package cl.textilcircular.api.support;
 
 import cl.textilcircular.api.account.Entrepreneur;
 import cl.textilcircular.api.account.UserAccount;
+import cl.textilcircular.api.business.Business;
+import cl.textilcircular.api.business.ReviewDecision;
 import cl.textilcircular.api.reference.AgeRange;
 import cl.textilcircular.api.reference.Commune;
 import cl.textilcircular.api.reference.Gender;
@@ -13,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** In-memory entities for unit tests; ids are set by reflection because only the database assigns them. */
@@ -46,6 +49,15 @@ public final class Fixtures {
         UserAccount account = withId(UserAccount.registerEntrepreneur("e" + id + "@b.cl", "Demo1234", null, ENCODER, NOW), id);
         Entrepreneur entrepreneur = Entrepreneur.create(account, rutFor(id), "Ana", "Pérez", ageRange(3L), gender(1L));
         return withId(entrepreneur, id);
+    }
+
+    /** Approved business of {@code owner}, visible in the directory. */
+    public static Business publicBusiness(Entrepreneur owner) {
+        Business business = withId(Business.register(owner, "Taller " + owner.getId(), "Desc", null, commune(102L),
+                List.of(service(1L)), NOW), IDS.getAndIncrement());
+        business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
+        business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
+        return business;
     }
 
     public static TextileService service(long id) {
