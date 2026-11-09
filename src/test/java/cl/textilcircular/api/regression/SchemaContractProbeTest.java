@@ -1,10 +1,10 @@
 package cl.textilcircular.api.regression;
 
-import cl.textilcircular.api.account.UserAccount;
-import cl.textilcircular.api.business.Business;
-import cl.textilcircular.api.business.CatalogEntry;
-import cl.textilcircular.api.business.CatalogEntryRepository;
-import cl.textilcircular.api.shared.validation.Validators;
+import cl.textilcircular.api.core.model.account.UserAccount;
+import cl.textilcircular.api.core.model.business.Business;
+import cl.textilcircular.api.core.model.business.CatalogEntry;
+import cl.textilcircular.api.core.repository.CatalogEntryRepository;
+import cl.textilcircular.api.core.validation.Validators;
 import cl.textilcircular.api.support.PersistedData;
 import cl.textilcircular.api.support.RepositoryTest;
 import jakarta.persistence.EntityManager;
@@ -133,8 +133,8 @@ class SchemaContractProbeTest {
         Business loaded = em.find(Business.class, business.getId());
         UserAccount moderator = em.find(UserAccount.class, admin.getId());
 
-        assertThatThrownBy(() -> loaded.takeDownBy(moderator, cl.textilcircular.api.business.RejectionReason.OTHER,
-                " ", java.time.Instant.now())).isInstanceOf(cl.textilcircular.api.shared.error.ValidationException.class);
+        assertThatThrownBy(() -> loaded.takeDownBy(moderator, cl.textilcircular.api.core.model.business.RejectionReason.OTHER,
+                " ", java.time.Instant.now())).isInstanceOf(cl.textilcircular.api.core.error.ValidationException.class);
         em.flush();
 
         assertThat(jdbc.queryForObject("SELECT review_round FROM business WHERE business_id = ?", Integer.class,

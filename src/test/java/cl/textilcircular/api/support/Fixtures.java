@@ -1,14 +1,14 @@
 package cl.textilcircular.api.support;
 
-import cl.textilcircular.api.account.Entrepreneur;
-import cl.textilcircular.api.account.UserAccount;
-import cl.textilcircular.api.business.Business;
-import cl.textilcircular.api.business.ReviewDecision;
-import cl.textilcircular.api.reference.AgeRange;
-import cl.textilcircular.api.reference.Commune;
-import cl.textilcircular.api.reference.Gender;
-import cl.textilcircular.api.reference.Region;
-import cl.textilcircular.api.reference.TextileService;
+import cl.textilcircular.api.core.model.account.Entrepreneur;
+import cl.textilcircular.api.core.model.account.UserAccount;
+import cl.textilcircular.api.core.model.business.Business;
+import cl.textilcircular.api.core.model.business.ReviewDecision;
+import cl.textilcircular.api.core.model.reference.AgeRange;
+import cl.textilcircular.api.core.model.reference.Commune;
+import cl.textilcircular.api.core.model.reference.Gender;
+import cl.textilcircular.api.core.model.reference.Region;
+import cl.textilcircular.api.core.model.reference.TextileService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -92,7 +92,7 @@ public final class Fixtures {
     /** Valid RUT whose body is derived from {@code seed}. */
     public static String rutFor(long seed) {
         String body = String.valueOf(10_000_000 + seed);
-        return body + "-" + cl.textilcircular.api.shared.validation.Validators.checkDigit(body);
+        return body + "-" + cl.textilcircular.api.core.validation.Validators.checkDigit(body);
     }
 
     private static <T> T instantiate(Class<T> type) {

@@ -1,13 +1,13 @@
 package cl.textilcircular.api.support;
 
-import cl.textilcircular.api.account.Entrepreneur;
-import cl.textilcircular.api.account.UserAccount;
-import cl.textilcircular.api.business.Business;
-import cl.textilcircular.api.business.ReviewDecision;
-import cl.textilcircular.api.reference.AgeRange;
-import cl.textilcircular.api.reference.Commune;
-import cl.textilcircular.api.reference.Gender;
-import cl.textilcircular.api.reference.TextileService;
+import cl.textilcircular.api.core.model.account.Entrepreneur;
+import cl.textilcircular.api.core.model.account.UserAccount;
+import cl.textilcircular.api.core.model.business.Business;
+import cl.textilcircular.api.core.model.business.ReviewDecision;
+import cl.textilcircular.api.core.model.reference.AgeRange;
+import cl.textilcircular.api.core.model.reference.Commune;
+import cl.textilcircular.api.core.model.reference.Gender;
+import cl.textilcircular.api.core.model.reference.TextileService;
 import jakarta.persistence.EntityManager;
 
 import java.util.Arrays;

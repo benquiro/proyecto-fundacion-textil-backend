@@ -1,8 +1,23 @@
 # proyecto-fundacion-textil-backend
 
-REST API for the Fundación Textil Circular mobile app. Spring Boot 4 monolith organized by feature
-(`account`, `business`, `product`, `messaging`, `outreach`, `media`, `analytics`, `reference`), with
-PostgreSQL managed by Flyway.
+REST API for the Fundación Textil Circular mobile app. Spring Boot 4 monolith with PostgreSQL managed by
+Flyway.
+
+## Project structure
+
+The code follows the same `core` + `feature` split as the mobile app:
+
+```
+cl.textilcircular.api
+├── core/                  shared by every feature
+│   ├── model/<area>/      JPA entities with the business rules (account, business, product, messaging...)
+│   ├── repository/        Spring Data repositories
+│   ├── error/ validation/ persistence/ crypto/ config/
+└── feature/<name>/        one package per app feature: controller, service, DTOs, MapStruct mapper
+```
+
+The schema lives in `src/main/resources/db/migration`. Rules: `core` never depends on `feature`, a feature
+never depends on another feature, and services only coordinate while business rules stay in the entities.
 
 ## Requirements
 

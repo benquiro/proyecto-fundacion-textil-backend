@@ -1,7 +1,7 @@
 package cl.textilcircular.api.support;
 
-import cl.textilcircular.api.shared.config.ClockConfig;
-import cl.textilcircular.api.shared.config.JpaAuditingConfig;
+import cl.textilcircular.api.core.config.ClockConfig;
+import cl.textilcircular.api.core.config.JpaAuditingConfig;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;

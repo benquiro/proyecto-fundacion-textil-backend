@@ -1,16 +1,16 @@
 package cl.textilcircular.api.seed;
 
-import cl.textilcircular.api.account.UserAccount;
-import cl.textilcircular.api.account.UserAccountRepository;
-import cl.textilcircular.api.business.BusinessRepository;
-import cl.textilcircular.api.business.BusinessReview;
-import cl.textilcircular.api.business.BusinessStatus;
-import cl.textilcircular.api.business.CatalogEntry;
-import cl.textilcircular.api.business.CatalogEntryRepository;
-import cl.textilcircular.api.business.RejectionReason;
-import cl.textilcircular.api.messaging.ConversationRepository;
-import cl.textilcircular.api.outreach.OutreachContentRepository;
-import cl.textilcircular.api.product.ProductRepository;
+import cl.textilcircular.api.core.model.account.UserAccount;
+import cl.textilcircular.api.core.repository.UserAccountRepository;
+import cl.textilcircular.api.core.repository.BusinessRepository;
+import cl.textilcircular.api.core.model.business.BusinessReview;
+import cl.textilcircular.api.core.model.business.BusinessStatus;
+import cl.textilcircular.api.core.model.business.CatalogEntry;
+import cl.textilcircular.api.core.repository.CatalogEntryRepository;
+import cl.textilcircular.api.core.model.business.RejectionReason;
+import cl.textilcircular.api.core.repository.ConversationRepository;
+import cl.textilcircular.api.core.repository.OutreachContentRepository;
+import cl.textilcircular.api.core.repository.ProductRepository;
 import cl.textilcircular.api.support.RepositoryTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

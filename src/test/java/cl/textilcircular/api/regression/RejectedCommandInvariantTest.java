@@ -1,13 +1,13 @@
 package cl.textilcircular.api.regression;
 
-import cl.textilcircular.api.account.AccountNotActiveException;
-import cl.textilcircular.api.account.Entrepreneur;
-import cl.textilcircular.api.account.UserAccount;
-import cl.textilcircular.api.business.Business;
-import cl.textilcircular.api.business.BusinessStatus;
-import cl.textilcircular.api.business.RejectionReason;
-import cl.textilcircular.api.shared.error.ValidationException;
-import cl.textilcircular.api.shared.validation.Validators;
+import cl.textilcircular.api.core.model.account.AccountNotActiveException;
+import cl.textilcircular.api.core.model.account.Entrepreneur;
+import cl.textilcircular.api.core.model.account.UserAccount;
+import cl.textilcircular.api.core.model.business.Business;
+import cl.textilcircular.api.core.model.business.BusinessStatus;
+import cl.textilcircular.api.core.model.business.RejectionReason;
+import cl.textilcircular.api.core.error.ValidationException;
+import cl.textilcircular.api.core.validation.Validators;
 import org.junit.jupiter.api.Test;
 
 import static cl.textilcircular.api.support.Fixtures.NOW;
