@@ -22,6 +22,8 @@ public final class Validators {
     public static final int MESSAGE_MAX = 2000;
     public static final int COMMENT_MAX = 500;
     public static final int CONTENT_TITLE_MAX = 150;
+    /** Not limited by the app; bounded here so a single post cannot grow without limit. */
+    public static final int CONTENT_BODY_MAX = 5000;
     public static final int EVENT_LOCATION_MAX = 200;
 
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
