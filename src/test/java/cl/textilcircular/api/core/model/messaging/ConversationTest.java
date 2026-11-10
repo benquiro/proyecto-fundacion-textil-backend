@@ -51,7 +51,7 @@ class ConversationTest {
 
     @Test
     void nonPublicBusinessCannotBeContacted() {
-        Business pending = Business.register(entrepreneur(), "T", "D", null, commune(1L), List.of(service(1L)), NOW);
+        Business pending = Business.register(entrepreneur(), "T", "D", null, commune(1L), List.of(service(1L)));
 
         assertThatThrownBy(() -> Conversation.start(client, pending, NOW)).isInstanceOf(NotFoundException.class);
     }

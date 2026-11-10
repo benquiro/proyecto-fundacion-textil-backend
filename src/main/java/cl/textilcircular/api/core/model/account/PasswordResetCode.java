@@ -22,8 +22,7 @@ import java.time.Instant;
 
 /**
  * Six-digit password recovery code. Email delivery is simulated (the code is logged), so only
- * the hash is persisted. The code locks after {@value #MAX_ATTEMPTS} wrong attempts; callers must
- * commit the failed attempt even though {@link #redeem} throws.
+ * the hash is persisted. The code locks after {@value #MAX_ATTEMPTS} wrong attempts.
  */
 @Getter
 @Entity
@@ -71,15 +70,22 @@ public class PasswordResetCode extends BaseEntity {
         return new Issued(raw, code);
     }
 
-    /** Marks the code as used when {@code rawCode} matches; counts the attempt otherwise. */
-    public void redeem(String rawCode, Instant now) {
+    /**
+     * Marks the code as used when {@code rawCode} matches and returns {@code true}. A wrong code
+     * counts the attempt and returns {@code false} instead of throwing, so the count is saved with
+     * an ordinary transaction (an exception would roll it back and undo the lockout).
+     *
+     * @throws ValidationException when the code is used, expired or locked; nothing changes then
+     */
+    public boolean redeem(String rawCode, Instant now) {
         if (usedAt != null || !now.isBefore(expiresAt) || failedAttempts >= MAX_ATTEMPTS) {
             throw new ValidationException("code", "El código expiró o ya no es válido");
         }
         if (rawCode == null || !Hashes.matches(codeHash, rawCode)) {
             failedAttempts++;
-            throw new ValidationException("code", "El código no es correcto");
+            return false;
         }
         usedAt = now;
+        return true;
     }
 }

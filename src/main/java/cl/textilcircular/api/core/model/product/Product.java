@@ -96,9 +96,6 @@ public class Product extends AuditedEntity {
     public static Product create(Business business, UserAccount actor, String title, String description, Long price,
                                  List<String> photoUrls, ProductAttributes attributes, Instant now) {
         requireOwner(business, actor);
-        if (business.isDeleted()) {
-            throw new ConflictException("BUSINESS_DELETED", "Esta ficha fue eliminada");
-        }
         Product product = new Product();
         product.business = business;
         product.status = ProductStatus.ACTIVE;
@@ -185,10 +182,14 @@ public class Product extends AuditedEntity {
         }
     }
 
+    /** The owner manages products only while the business exists, for new and existing ones alike. */
     private static void requireOwner(Business business, UserAccount actor) {
         actor.ensureActive();
         if (!business.isOwnedBy(actor)) {
             throw new ForbiddenException();
+        }
+        if (business.isDeleted()) {
+            throw new ConflictException("BUSINESS_DELETED", "Esta ficha fue eliminada");
         }
     }
 }

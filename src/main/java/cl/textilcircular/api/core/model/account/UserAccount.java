@@ -176,12 +176,17 @@ public class UserAccount extends AuditedEntity {
         this.deactivatedAt = now;
     }
 
+    /**
+     * A deactivated account can be suspended too; otherwise its owner could dodge moderation by
+     * deactivating it and logging in again, which reactivates it.
+     */
     public void suspendBy(UserAccount administrator) {
         requireOtherActiveAdministrator(administrator);
-        if (status != AccountStatus.ACTIVE) {
-            throw AccountErrors.invalidStatus("Solo se puede suspender una cuenta activa");
+        if (status != AccountStatus.ACTIVE && status != AccountStatus.DEACTIVATED) {
+            throw AccountErrors.invalidStatus("Solo se puede suspender una cuenta activa o desactivada");
         }
         this.status = AccountStatus.SUSPENDED;
+        this.deactivatedAt = null;
     }
 
     public void reactivateBy(UserAccount administrator) {

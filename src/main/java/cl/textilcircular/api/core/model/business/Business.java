@@ -108,7 +108,7 @@ public class Business extends AuditedEntity {
     private List<BusinessReview> reviews = new ArrayList<>();
 
     public static Business register(Entrepreneur owner, String name, String description, String photoUrl,
-                                    Commune commune, List<TextileService> services, Instant now) {
+                                    Commune commune, List<TextileService> services) {
         Business business = new Business();
         business.owner = Objects.requireNonNull(owner);
         business.status = BusinessStatus.PENDING;
@@ -151,6 +151,10 @@ public class Business extends AuditedEntity {
     public BusinessReview vote(UserAccount reviewer, ReviewDecision decision, RejectionReason reason,
                                String comment, Instant now) {
         if (isDeleted() || status != BusinessStatus.PENDING) {
+            throw BusinessErrors.notPendingReview();
+        }
+        // The review queue hides businesses whose owner is not active; a vote by id must too.
+        if (!owner.getAccount().isActive()) {
             throw BusinessErrors.notPendingReview();
         }
         reviewer.ensureActive();
@@ -273,9 +277,14 @@ public class Business extends AuditedEntity {
         this.services.addAll(chosen);
     }
 
-    private static List<TextileService> validServices(List<TextileService> services) {
+    /**
+     * 1 or 2 distinct services. A retired service is accepted only when the business already has
+     * it, so retiring a service does not block every other edit of the businesses that use it.
+     */
+    private List<TextileService> validServices(List<TextileService> services) {
+        List<Long> current = serviceIds();
         boolean valid = services != null && !services.isEmpty() && services.size() <= MAX_SERVICES
-                && services.stream().allMatch(s -> s != null && s.isActive())
+                && services.stream().allMatch(s -> s != null && (s.isActive() || current.contains(s.getId())))
                 && new HashSet<>(services.stream().map(TextileService::getId).toList()).size() == services.size();
         if (!valid) {
             throw new ValidationException("serviceIds", "Elige 1 o 2 servicios distintos");

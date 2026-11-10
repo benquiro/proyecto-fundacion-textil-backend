@@ -26,9 +26,11 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
 
     /**
      * Low-level update behind {@link #markReadBy}; does not check participation. {@code read_at}
-     * is never earlier than {@code sent_at}, even if the sender's clock was ahead.
+     * is never earlier than {@code sent_at}, even if the sender's clock was ahead. The persistence
+     * context is not cleared, so entities the caller already holds stay managed; a Message already
+     * loaded in this transaction keeps its old {@code readAt} until refreshed.
      */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Modifying(flushAutomatically = true)
     @Query("""
             update Message m set m.readAt = greatest(m.sentAt, :now)
             where m.conversation.id = :conversationId and m.sender.id <> :readerId and m.readAt is null

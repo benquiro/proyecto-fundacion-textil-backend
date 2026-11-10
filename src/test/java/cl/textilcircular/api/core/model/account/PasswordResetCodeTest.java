@@ -23,7 +23,7 @@ class PasswordResetCodeTest {
 
     @Test
     void correctCodeIsUsedOnce() {
-        issued.code().redeem(issued.rawCode(), NOW.plusSeconds(60));
+        assertThat(issued.code().redeem(issued.rawCode(), NOW.plusSeconds(60))).isTrue();
 
         assertThat(issued.code().getUsedAt()).isEqualTo(NOW.plusSeconds(60));
         assertThatThrownBy(() -> issued.code().redeem(issued.rawCode(), NOW.plusSeconds(61)))
@@ -45,7 +45,7 @@ class PasswordResetCodeTest {
 
     @Test
     void missingCodeCountsAsAWrongAttempt() {
-        assertThatThrownBy(() -> issued.code().redeem(null, NOW)).hasMessage("El código no es correcto");
+        assertThat(issued.code().redeem(null, NOW)).isFalse();
         assertThat(issued.code().getFailedAttempts()).isEqualTo(1);
     }
 
@@ -53,7 +53,7 @@ class PasswordResetCodeTest {
     void codeLocksAfterFiveWrongAttempts() {
         String wrong = issued.rawCode().equals("000000") ? "111111" : "000000";
         for (int i = 0; i < 5; i++) {
-            assertThatThrownBy(() -> issued.code().redeem(wrong, NOW)).hasMessage("El código no es correcto");
+            assertThat(issued.code().redeem(wrong, NOW)).isFalse();
         }
 
         assertThat(issued.code().getFailedAttempts()).isEqualTo(PasswordResetCode.MAX_ATTEMPTS);

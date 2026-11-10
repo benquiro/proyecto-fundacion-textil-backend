@@ -68,6 +68,19 @@ class UserAccountTest {
     }
 
     @Test
+    void deactivatedAccountCanBeSuspendedAndThenCannotLogIn() {
+        UserAccount account = customer();
+        account.deactivate(NOW);
+
+        account.suspendBy(admin());
+
+        assertThat(account.getStatus()).isEqualTo(AccountStatus.SUSPENDED);
+        assertThat(account.getDeactivatedAt()).isNull();
+        assertThatThrownBy(() -> account.authenticate("Demo1234", ENCODER, NOW))
+                .isInstanceOf(AccountNotActiveException.class);
+    }
+
+    @Test
     void loggingInReactivatesADeactivatedAccount() {
         UserAccount account = customer();
         account.deactivate(NOW);

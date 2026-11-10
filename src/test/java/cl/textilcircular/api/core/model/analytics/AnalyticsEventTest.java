@@ -30,6 +30,13 @@ class AnalyticsEventTest {
     }
 
     @Test
+    void shortenedTermNeverSplitsAnEmoji() {
+        String term = AnalyticsEvent.directorySearch("a".repeat(99) + "🧵🧵", null, null, null, NOW).getSearchTerm();
+
+        assertThat(term).isEqualTo("a".repeat(99) + "🧵");
+    }
+
+    @Test
     void viewsAndContactsPointToTheirBusiness() {
         Entrepreneur owner = entrepreneur();
         Business business = publicBusiness(owner);

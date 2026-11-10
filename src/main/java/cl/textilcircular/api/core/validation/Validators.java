@@ -27,7 +27,7 @@ public final class Validators {
     public static final int EVENT_LOCATION_MAX = 200;
 
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
-    private static final Pattern RUT = Pattern.compile("^\\d{7,8}-[\\dK]$");
+    private static final Pattern RUT = Pattern.compile("^[1-9]\\d{6,7}-[\\dK]$");
     private static final Pattern WEB_URL = Pattern.compile("^https?://[^\\s/?#]+[^\\s]*$", Pattern.CASE_INSENSITIVE);
     /** One file name, never starting with a dot ("..", ".hidden"). */
     private static final Pattern MEDIA_PATH = Pattern.compile("^/media/[A-Za-z0-9_-][A-Za-z0-9._-]*$");
@@ -94,6 +94,8 @@ public final class Validators {
         if (!value.isEmpty() && value.indexOf('-') < 0) {
             value = value.substring(0, value.length() - 1) + "-" + value.charAt(value.length() - 1);
         }
+        // Leading zeros add nothing to the check digit, so "01234567-4" is the same RUT as "1234567-4".
+        value = value.replaceFirst("^0+(?=\\d)", "");
         if (!RUT.matcher(value).matches()) {
             throw new ValidationException("rut", "Ingresa un RUT válido, por ejemplo 12345678-5");
         }

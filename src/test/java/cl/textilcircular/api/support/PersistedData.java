@@ -52,7 +52,7 @@ public class PersistedData {
 
     public Business pendingBusiness(String name, String description, long communeId, Long... serviceIds) {
         Business business = Business.register(entrepreneur(), name, description, null,
-                em.find(Commune.class, communeId), services(serviceIds), NOW);
+                em.find(Commune.class, communeId), services(serviceIds));
         em.persist(business);
         return business;
     }

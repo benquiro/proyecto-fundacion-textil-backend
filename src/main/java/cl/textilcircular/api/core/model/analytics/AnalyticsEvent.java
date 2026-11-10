@@ -106,11 +106,14 @@ public class AnalyticsEvent {
         return event;
     }
 
+    /** Cuts at {@value #SEARCH_TERM_MAX} characters (code points, as varchar counts), never inside an emoji. */
     private static String shorten(String term) {
         if (term == null || term.isBlank()) {
             return null;
         }
         String trimmed = term.trim();
-        return trimmed.length() > SEARCH_TERM_MAX ? trimmed.substring(0, SEARCH_TERM_MAX) : trimmed;
+        return trimmed.codePointCount(0, trimmed.length()) > SEARCH_TERM_MAX
+                ? trimmed.substring(0, trimmed.offsetByCodePoints(0, SEARCH_TERM_MAX))
+                : trimmed;
     }
 }

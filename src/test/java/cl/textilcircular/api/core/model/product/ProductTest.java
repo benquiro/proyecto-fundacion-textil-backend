@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ProductTest {
 
     Entrepreneur owner = entrepreneur();
-    Business business = Business.register(owner, "Taller", "Desc", null, commune(1L), List.of(service(1L)), NOW);
+    Business business = Business.register(owner, "Taller", "Desc", null, commune(1L), List.of(service(1L)));
     ProductAttributes attributes = new ProductAttributes(ProductSize.M, ProductCondition.GOOD, " Algodón ", OfferingType.REPAIR);
 
     Product product() {
@@ -155,5 +155,18 @@ class ProductTest {
         assertThatThrownBy(() -> Product.create(business, owner.getAccount(), "T", "D", null,
                 List.of("https://img/1.jpg"), ProductAttributes.NONE, NOW))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void productsOfADeletedBusinessCannotBeChanged() {
+        Product product = product();
+        business.softDelete(NOW);
+
+        assertThatThrownBy(() -> product.update(owner.getAccount(), "T", "D", null, List.of("https://img/1.jpg"),
+                ProductAttributes.NONE, NOW)).hasMessage("Esta ficha fue eliminada");
+        assertThatThrownBy(() -> product.hide(owner.getAccount())).hasMessage("Esta ficha fue eliminada");
+        assertThatThrownBy(() -> product.show(owner.getAccount())).hasMessage("Esta ficha fue eliminada");
+        assertThatThrownBy(() -> product.delete(owner.getAccount(), NOW)).hasMessage("Esta ficha fue eliminada");
+        assertThat(product.isDeleted()).isFalse();
     }
 }

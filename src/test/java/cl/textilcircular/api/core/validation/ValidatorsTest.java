@@ -45,6 +45,7 @@ class ValidatorsTest {
         assertThat(Validators.rut("12.345.678-5")).isEqualTo("12345678-5");
         assertThat(Validators.rut("123456785")).isEqualTo("12345678-5");
         assertThat(Validators.rut("10.000.013-k")).isEqualTo("10000013-K");
+        assertThat(Validators.rut("01.234.567-4")).isEqualTo(Validators.rut("1234567-4"));
         assertThatThrownBy(() -> Validators.rut("12345678-9"))
                 .hasMessage("El dígito verificador del RUT no coincide");
         assertThatThrownBy(() -> Validators.rut("abc"))

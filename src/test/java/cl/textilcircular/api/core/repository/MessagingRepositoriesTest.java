@@ -105,6 +105,18 @@ class MessagingRepositoriesTest {
     }
 
     @Test
+    void markingReadKeepsLoadedEntitiesManaged() {
+        Conversation conversation = conversation(client, business);
+        send(conversation, owner, "Hola", NOW);
+        em.flush();
+
+        messages.markReadBy(conversation, client, NOW.plusSeconds(60));
+
+        assertThat(em.contains(conversation)).isTrue();
+        assertThat(em.contains(client)).isTrue();
+    }
+
+    @Test
     void markReadRejectsOutsidersAndToleratesClockSkew() {
         Conversation conversation = conversation(client, business);
         send(conversation, owner, "Enviado por un reloj adelantado", NOW.plusSeconds(30));

@@ -12,8 +12,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
-    /** Ends every session of a user (logout everywhere, password change, suspension, deletion). */
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    /**
+     * Ends every session of a user (logout everywhere, password change, suspension, deletion).
+     * Does not clear the persistence context, so changes to the account in the same transaction
+     * are still saved; a RefreshToken already loaded keeps its old {@code revokedAt}.
+     */
+    @Modifying(flushAutomatically = true)
     @Query("update RefreshToken t set t.revokedAt = :now where t.account.id = :userId and t.revokedAt is null")
     int revokeAllActive(Long userId, Instant now);
 }

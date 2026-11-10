@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -154,6 +155,19 @@ class BusinessRepositoriesTest {
         assertThat(ids("abc")).isEqualTo(first);
         assertThat(catalog.search(null, null, null, null, "abc", PageRequest.of(0, 2)).getTotalElements())
                 .isEqualTo(first.size());
+    }
+
+    @Test
+    void sortRequestedByTheCallerIsIgnored() {
+        for (int i = 0; i < 4; i++) {
+            data.approvedBusiness("Taller " + i, "Desc", 102L, 1L);
+        }
+        data.flushAndClear();
+
+        List<Long> sorted = catalog.search(null, null, null, null, "abc", PageRequest.of(0, 100, Sort.by("name")))
+                .map(CatalogEntry::getId).getContent();
+
+        assertThat(sorted).isEqualTo(ids("abc"));
     }
 
     private List<String> names(String term, Long regionId, Long communeId, Long serviceId) {

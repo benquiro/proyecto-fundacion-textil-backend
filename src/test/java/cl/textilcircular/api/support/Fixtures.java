@@ -54,7 +54,7 @@ public final class Fixtures {
     /** Approved business of {@code owner}, visible in the directory. */
     public static Business publicBusiness(Entrepreneur owner) {
         Business business = withId(Business.register(owner, "Taller " + owner.getId(), "Desc", null, commune(102L),
-                List.of(service(1L)), NOW), IDS.getAndIncrement());
+                List.of(service(1L))), IDS.getAndIncrement());
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         return business;

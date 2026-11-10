@@ -26,7 +26,7 @@ class BusinessTest {
 
     Business pending() {
         return Business.register(owner, " Hilos de Barrio ", " Arreglos de ropa ", " ", commune(102L),
-                List.of(service(4L), service(2L)), NOW);
+                List.of(service(4L), service(2L)));
     }
 
     @Test
@@ -46,7 +46,7 @@ class BusinessTest {
         for (List<TextileService> services : List.of(List.<TextileService>of(),
                 List.of(service(1L), service(2L), service(3L)), List.of(service(1L), service(1L)),
                 List.of(retiredService(5L)))) {
-            assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", null, commune(1L), services, NOW))
+            assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", null, commune(1L), services))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Elige 1 o 2 servicios distintos")
                     .extracting("field").isEqualTo("serviceIds");
@@ -56,7 +56,7 @@ class BusinessTest {
     @Test
     void photoMustBeAWebOrMediaLink() {
         assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", "javascript:alert(1)", commune(1L),
-                List.of(service(1L)), NOW))
+                List.of(service(1L))))
                 .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("photoUrl");
     }
 
@@ -214,9 +214,30 @@ class BusinessTest {
 
     private Business approved() {
         Business business = Business.register(owner, "Hilos de Barrio", "Arreglos de ropa", null, commune(102L),
-                List.of(service(4L), service(2L)), NOW);
+                List.of(service(4L), service(2L)));
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         return business;
+    }
+
+    @Test
+    void retiredServiceAlreadyChosenDoesNotBlockOtherEdits() {
+        Business business = Business.register(owner, "Taller", "Desc", null, commune(1L), List.of(service(4L)));
+
+        business.edit("Taller", "Nueva descripción", null, commune(1L), List.of(retiredService(4L)), NOW);
+
+        assertThat(business.getDescription()).isEqualTo("Nueva descripción");
+        assertThatThrownBy(() -> business.edit("Taller", "Desc", null, commune(1L), List.of(retiredService(5L)), NOW))
+                .hasMessage("Elige 1 o 2 servicios distintos");
+    }
+
+    @Test
+    void businessOfAnInactiveOwnerCannotBeVoted() {
+        Business business = pending();
+        owner.getAccount().suspendBy(administrator());
+
+        assertThatThrownBy(() -> business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW))
+                .isInstanceOf(ConflictException.class);
+        assertThat(business.getStatus()).isEqualTo(BusinessStatus.PENDING);
     }
 }

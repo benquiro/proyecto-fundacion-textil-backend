@@ -2,6 +2,7 @@ package cl.textilcircular.api.core.repository;
 
 import cl.textilcircular.api.core.model.business.CatalogEntry;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -17,10 +18,12 @@ public interface CatalogEntryRepository extends Repository<CatalogEntry, Long> {
      * Directory search. {@code term} matches part of the name or description ignoring case and
      * accents; every filter is optional. Results are shuffled with {@code seed}, so a client that
      * keeps its seed gets stable pages and different clients see different businesses first.
+     * Any sort in {@code pageable} is ignored: the native query owns the order.
      */
     default Page<CatalogEntry> search(String term, Long regionId, Long communeId, Long serviceId,
                                       String seed, Pageable pageable) {
-        return searchByPattern(likePattern(term), regionId, communeId, serviceId, seed == null ? "" : seed, pageable);
+        Pageable unsorted = pageable.isPaged() ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()) : pageable;
+        return searchByPattern(likePattern(term), regionId, communeId, serviceId, seed == null ? "" : seed, unsorted);
     }
 
     @Query(value = """

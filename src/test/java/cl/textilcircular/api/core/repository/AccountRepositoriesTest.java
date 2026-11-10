@@ -121,11 +121,7 @@ class AccountRepositoriesTest {
         UserAccount account = saveCustomer("ana@mail.cl");
         PasswordResetCode code = PasswordResetCode.issue(account, NOW, Duration.ofMinutes(15)).code();
         for (int i = 0; i < PasswordResetCode.MAX_ATTEMPTS; i++) {
-            try {
-                code.redeem("not-a-code", NOW);
-            } catch (RuntimeException expected) {
-                // each wrong attempt is counted
-            }
+            assertThat(code.redeem("not-a-code", NOW)).isFalse();
         }
 
         resetCodes.saveAndFlush(code);
