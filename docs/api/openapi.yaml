@@ -105,6 +105,7 @@ paths:
       operationId: refreshSession
       description: |
         Rotates the refresh token: the one sent is revoked and a new pair is returned.
+        Sending a token that was already rotated ends every session of the account.
         A 401 means the session is over and the app signs the user out.
       security: []
       requestBody:
@@ -802,7 +803,7 @@ components:
             errors:
               - { field: email, message: Ingresa un correo válido }
     Unauthorized:
-      description: Missing, expired or revoked token (`UNAUTHORIZED`).
+      description: Missing, expired or revoked token, or its session has ended (logout, rotation, password change, suspension, deactivation) (`UNAUTHORIZED`).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

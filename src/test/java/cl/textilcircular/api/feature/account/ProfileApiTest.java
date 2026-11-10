@@ -115,15 +115,58 @@ class ProfileApiTest {
         login("cami@demo.cl", "Nueva1234");
     }
 
+    String refresh(String refreshToken) throws Exception {
+        return JsonPath.read(call(HttpMethod.POST, "/auth/refresh", null,
+                        "{\"refreshToken\":\"%s\"}".formatted(refreshToken))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.refreshToken");
+    }
+
+    @Test
+    void access_token_dies_with_its_session() throws Exception {
+        Tokens cami = signUp("cami@demo.cl");
+        refresh(cami.refresh());
+        call(HttpMethod.GET, "/me", cami.access(), null)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+        Tokens again = login("cami@demo.cl", "Secreta123");
+        call(HttpMethod.POST, "/auth/logout", null, "{\"refreshToken\":\"%s\"}".formatted(again.refresh()))
+                .andExpect(status().isNoContent());
+        call(HttpMethod.GET, "/me", again.access(), null).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void reusing_a_rotated_refresh_token_ends_every_session() throws Exception {
+        Tokens phone = signUp("cami@demo.cl");
+        Tokens tablet = login("cami@demo.cl", "Secreta123");
+        String rotated = refresh(phone.refresh());
+
+        call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(phone.refresh()))
+                .andExpect(status().isUnauthorized());
+        call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(rotated))
+                .andExpect(status().isUnauthorized());
+        call(HttpMethod.GET, "/me", tablet.access(), null).andExpect(status().isUnauthorized());
+        login("cami@demo.cl", "Secreta123");
+    }
+
+    @Test
+    void unknown_path_is_a_plain_not_found() throws Exception {
+        Tokens cami = signUp("cami@demo.cl");
+        call(HttpMethod.GET, "/ADMIN/users", cami.access(), null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("ADMIN"))));
+    }
+
     @Test
     void deactivation_ends_sessions_and_login_brings_the_account_back() throws Exception {
         Tokens cami = signUp("cami@demo.cl");
 
         call(HttpMethod.POST, "/me/deactivation", cami.access(), null).andExpect(status().isNoContent());
         call(HttpMethod.GET, "/me", cami.access(), null)
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCOUNT_NOT_ACTIVE"))
-                .andExpect(jsonPath("$.accountStatus").value("DEACTIVATED"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
         call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(cami.refresh()))
                 .andExpect(status().isUnauthorized());
 
@@ -153,9 +196,7 @@ class ProfileApiTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.accountStatus").value("SUSPENDED"))
                 .andExpect(jsonPath("$.detail").value("Tu cuenta está suspendida"));
-        call(HttpMethod.DELETE, "/me", cami.access(), null)
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.accountStatus").value("SUSPENDED"));
+        call(HttpMethod.DELETE, "/me", cami.access(), null).andExpect(status().isUnauthorized());
 
         call(HttpMethod.DELETE, "/admin/users/" + cami.userId() + "/suspension", admin.access(), null)
                 .andExpect(status().isNoContent());

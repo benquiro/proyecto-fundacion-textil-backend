@@ -1,5 +1,6 @@
 package cl.textilcircular.api.core.security;
 
+import cl.textilcircular.api.core.repository.RefreshTokenRepository;
 import cl.textilcircular.api.core.web.Problems;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -13,9 +14,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -26,13 +29,15 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.util.List;
 
 import static cl.textilcircular.api.core.web.WebConfig.API_BASE_PATH;
 
 /**
  * Stateless API: every protected request carries a bearer access token (HS256) issued by
- * {@link TokenService}. The caller's id is the token subject and its role the {@code role} claim.
+ * {@link TokenService}. The caller's id is the token subject and its role the {@code role} claim; the
+ * token is rejected once its session ({@code sid}) has ended, see {@link SessionValidator}.
  */
 @Slf4j
 @Configuration(proxyBeanMethods = false)
@@ -94,8 +99,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(SecretKey jwtKey) {
-        return NimbusJwtDecoder.withSecretKey(jwtKey).macAlgorithm(MacAlgorithm.HS256).build();
+    JwtDecoder jwtDecoder(SecretKey jwtKey, RefreshTokenRepository refreshTokens, Clock clock) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtKey).macAlgorithm(MacAlgorithm.HS256).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(),
+                new SessionValidator(refreshTokens, clock)));
+        return decoder;
     }
 
     /** Fixed texts only, so the body is built by hand instead of going through a message converter. */

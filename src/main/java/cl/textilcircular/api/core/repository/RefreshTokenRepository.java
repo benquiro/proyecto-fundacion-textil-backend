@@ -14,6 +14,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    /** Whether the session behind an access token is still alive. */
+    @Query("select count(t) > 0 from RefreshToken t where t.id = :id and t.revokedAt is null and t.expiresAt > :now")
+    boolean isActive(Long id, Instant now);
+
     /** Rotation goes through here, so two refreshes with the same token cannot both succeed. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from RefreshToken t where t.tokenHash = :tokenHash")

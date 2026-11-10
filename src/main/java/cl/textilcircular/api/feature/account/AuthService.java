@@ -97,14 +97,22 @@ class AuthService {
         return Session.of(tokenService.issue(account, now), account);
     }
 
-    /** Rotation: the token sent is revoked and a new pair is returned. */
+    /**
+     * Rotation: the token sent is revoked and a new pair is returned. A token that was already rotated
+     * has leaked (or its new pair was lost), so every session of the account ends.
+     */
     @Transactional(noRollbackFor = UnauthorizedException.class)
     Session refresh(String rawRefreshToken) {
         Instant now = clock.instant();
-        RefreshToken token = findToken(rawRefreshToken)
-                .filter(t -> t.isActive(now))
-                .orElseThrow(UnauthorizedException::new);
-        token.revoke(now);
+        RefreshToken token = findToken(rawRefreshToken).orElseThrow(UnauthorizedException::new);
+        if (token.wasRotated()) {
+            refreshTokens.revokeAllActive(token.getAccount().getId(), now);
+            throw new UnauthorizedException();
+        }
+        if (!token.isActive(now)) {
+            throw new UnauthorizedException();
+        }
+        token.rotate(now);
         UserAccount account = token.getAccount();
         if (!account.isActive()) {
             throw new UnauthorizedException();

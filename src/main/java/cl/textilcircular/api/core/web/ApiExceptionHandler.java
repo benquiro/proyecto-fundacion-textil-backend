@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -105,6 +106,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected @Nullable ResponseEntity<Object> handleExceptionInternal(
             Exception ex, @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+        if (body == null && ex instanceof ErrorResponse error) {
+            // Some handlers (404 for an unknown path) leave the body for the superclass to build.
+            body = error.getBody();
+        }
         if (body instanceof ProblemDetail problem && (problem.getProperties() == null
                 || !problem.getProperties().containsKey("code"))) {
             problem.setProperty("code", Problems.codeFor(statusCode));
