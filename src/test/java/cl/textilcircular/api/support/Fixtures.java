@@ -21,6 +21,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /** In-memory entities for unit tests; ids are set by reflection because only the database assigns them. */
 public final class Fixtures {
 
+    /** Long enough for the business description rule; tests rarely care what it says. */
+    public static final String BUSINESS_DESCRIPTION = "Reparación y transformación de prendas con técnicas de costura a mano.";
+
     public static final PasswordEncoder ENCODER = new BCryptPasswordEncoder(4);
     public static final Instant NOW = Instant.parse("2026-11-09T12:00:00Z");
 
@@ -53,7 +56,7 @@ public final class Fixtures {
 
     /** Approved business of {@code owner}, visible in the directory. */
     public static Business publicBusiness(Entrepreneur owner) {
-        Business business = withId(Business.register(owner, "Taller " + owner.getId(), "Desc", null, commune(102L),
+        Business business = withId(Business.register(owner, "Taller " + owner.getId(), BUSINESS_DESCRIPTION, null, commune(102L),
                 List.of(service(1L))), IDS.getAndIncrement());
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);

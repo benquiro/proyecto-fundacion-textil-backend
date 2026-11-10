@@ -1,5 +1,6 @@
 package cl.textilcircular.api.core.model.messaging;
 
+import cl.textilcircular.api.support.Fixtures;
 import cl.textilcircular.api.core.model.account.Entrepreneur;
 import cl.textilcircular.api.core.model.account.UserAccount;
 import cl.textilcircular.api.core.model.business.Business;
@@ -51,7 +52,7 @@ class ConversationTest {
 
     @Test
     void nonPublicBusinessCannotBeContacted() {
-        Business pending = Business.register(entrepreneur(), "T", "D", null, commune(1L), List.of(service(1L)));
+        Business pending = Business.register(entrepreneur(), "T", Fixtures.BUSINESS_DESCRIPTION, null, commune(1L), List.of(service(1L)));
 
         assertThatThrownBy(() -> Conversation.start(client, pending, NOW)).isInstanceOf(NotFoundException.class);
     }

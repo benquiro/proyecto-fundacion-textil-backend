@@ -15,6 +15,7 @@ public final class Validators {
     public static final int EMAIL_MAX = 254;
     public static final int PERSON_NAME_MAX = 60;
     public static final int BUSINESS_NAME_MAX = 100;
+    public static final int BUSINESS_DESCRIPTION_MIN = 50;
     public static final int BUSINESS_DESCRIPTION_MAX = 500;
     public static final int URL_MAX = 500;
     public static final int PRODUCT_TITLE_MAX = 100;
@@ -45,6 +46,15 @@ public final class Validators {
         }
         if (value.length() > max) {
             throw new ValidationException(field, tooLong(label, max));
+        }
+        return value;
+    }
+
+    /** Required text with a minimum length, for descriptions that must say something. */
+    public static String text(String field, String raw, int min, int max, String label) {
+        String value = text(field, raw, max, label);
+        if (value.length() < min) {
+            throw new ValidationException(field, "Escribe al menos " + min + " caracteres en " + label);
         }
         return value;
     }
