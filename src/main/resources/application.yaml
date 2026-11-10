@@ -14,3 +14,7 @@ spring:
         order_updates: true
   flyway:
     locations: classpath:db/migration
+logging:
+  level:
+    # At WARN Hibernate prints the whole failed INSERT, personal data included; the API handler logs the constraint name instead.
+    org.hibernate.orm.jdbc.error: error
