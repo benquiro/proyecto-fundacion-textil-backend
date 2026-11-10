@@ -14,11 +14,11 @@ Branch: `feat/accounts` (from `feat/core-domain-persistence`) · Delivery strate
 
 | ID | Specs | Route | Status | Commit / evidence |
 |----|-------|-------|--------|-------------------|
-| T1 | S2 S1 | inline | pending | web foundation (security, JWT, problem handler, `/api/v1` prefix) + lookups |
-| T2 | S1 S2 | inline | pending | auth: register customer/entrepreneur, login, refresh, logout |
-| T3 | S1 S2 | inline | pending | profile: get/patch/delete `/me`, password, deactivation |
-| T4 | S1 | inline | pending | admin users: list, suspend, reactivate |
-| T5 | S3 | inline | pending | end to end with the app on the emulator |
+| T1 | S2 S1 | inline | done | `9ba819e` security (HS256 JWT, `sid` claim), RFC 9457 handler, `/api/v1` prefix, lookups; `LookupApiTest` 2/2 |
+| T2 | S1 S2 | inline | done | `f0e63e6` sign-up (customer, entrepreneur + PENDING business), login, refresh rotation with row lock, logout; `AuthApiTest` 3/3 |
+| T3 | S1 S2 | inline | done | `d06e305` (with T4) `/me` get/patch/delete, password (keeps own session), deactivation; `ProfileApiTest` |
+| T4 | S1 | inline | done | `d06e305` admin list/suspend/reactivate; `ProfileApiTest` 5/5; full suite 277/277 |
+| T5 | S3 | inline | done | emulator run, see L4; README section `API and sessions` |
 
 Route evidence: each task builds on T1 and touches the same security/error configuration, so no parallel independent units; all writes inline.
 
@@ -26,3 +26,5 @@ Route evidence: each task builds on T1 and touches the same security/error confi
 
 - **L1** (2026-11-10) User: "Implementemos la feauture de cuentas, utiliza el flujo ODD para está implementacione. - para considerar lista está funcionalidad el flujo debe funcionar entre el backend y la app móvil @../Proyecto-Textil-Circular/Proyecto-Fundacion-Textil"
 - **L2** (2026-11-10) Baseline: no web layer existed (no controllers, security config or error handler). Forecast ~1200 authored lines → over 400; linear work-unit commits, chain strategy asked before any PR. The previous session's uncommitted code-review fixes were committed first on `feat/core-domain-persistence` so this feature starts from a clean tree.
+- **L3** (2026-11-10) Decisions: random JWT key when `app.security.jwt-secret` is blank (no secret in the repository); access token carries `sid` (refresh token id) so a password change revokes only the other sessions; unknown login email still runs a BCrypt check (same timing); entrepreneur sign-up prefixes business field errors with `business.`; an account that is not ACTIVE gets 403 `ACCOUNT_NOT_ACTIVE` on `/me` routes. API tests commit per request (no shared transaction) and truncate `user_account` after each test, because a shared transaction hid the bulk revocation from a token already loaded.
+- **L4** (2026-11-10) End to end on `Medium_Phone` (Android 17) with the debug app and `dev` backend, all observed in the UI and checked in PostgreSQL: wrong password shows "Correo o contraseña incorrectos"; customer sign-up creates the row and signs in; profile shows and saves the alias; wrong current password shows "La contraseña actual no es correcta" under the field; password change works and login with the new one succeeds; logout revokes the refresh token; after a backend restart (new key, `access-ttl=PT30S`) the app renewed the session by itself (token 952 revoked, 1001 issued); entrepreneur sign-up loads age ranges, genders, services, regions and communes from the API and creates account, RUT, profile and business PENDING round 1 with 2 services; the entrepreneur profile shows RUT and demographics. Finding: Android 17 blocks `10.0.2.2` for targetSdk 37 apps without `ACCESS_LOCAL_NETWORK`; the run used `adb reverse tcp:8080 tcp:8080` and `-PapiBaseUrl=http://127.0.0.1:8080/api/v1/` (app code unchanged). Open: the app's default debug URL needs a decision; Home shows "Tu sesión expiró" for `/contents` because public routes of later features do not exist yet (anonymous request → 401).

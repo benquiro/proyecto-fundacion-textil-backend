@@ -38,6 +38,27 @@ for example `admin1@textilcircular.cl` (administrator), `valentina.mora@example.
 Without the `dev` profile only the schema and reference data (regions, communes, services, age ranges and
 genders) are loaded.
 
+## API and sessions
+
+The REST API lives under `/api/v1` and follows `docs/api/openapi.yaml`. Protected operations need
+`Authorization: Bearer <accessToken>` from `/auth/login` or a sign-up. Settings:
+
+| Property | Default | Meaning |
+|----------|---------|---------|
+| `app.security.jwt-secret` (env `APP_SECURITY_JWT_SECRET`) | random per start | HMAC key, at least 32 bytes. Without it sessions end on every restart. |
+| `app.security.access-ttl` | `PT15M` | Access token lifetime. |
+| `app.security.refresh-ttl` | `P30D` | Refresh token lifetime. |
+
+### With the Android app on the emulator
+
+Android 17 blocks apps that target SDK 37 from reaching local network addresses such as `10.0.2.2`
+without the `ACCESS_LOCAL_NETWORK` permission. Forward the port instead and build the app against loopback:
+
+```bash
+adb reverse tcp:8080 tcp:8080
+./gradlew installDebug -PapiBaseUrl=http://127.0.0.1:8080/api/v1/   # in the app repository
+```
+
 ## Tests
 
 ```bash
