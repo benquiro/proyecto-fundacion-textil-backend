@@ -30,32 +30,32 @@ public class OpenApiConfig {
 
     @Bean
     OpenAPI openApi() {
-        Schema<?> problem = ModelConverters.getInstance().readAllAsResolvedSchema(ApiProblem.class).schema;
+        var problem = ModelConverters.getInstance().readAllAsResolvedSchema(ApiProblem.class);
         return new OpenAPI()
                 .info(new Info()
                         .title("Textil Circular API")
                         .version("v1")
                         .description("""
-                                Backend of the Textil Circular mobile app.
+                                Backend de la app móvil Textil Circular.
 
-                                **How to try the protected endpoints:** call `POST /auth/login`, copy the \
-                                `accessToken` from the response, press **Authorize** and paste it (without the \
-                                `Bearer ` prefix). Access tokens last 15 minutes; renew them with `POST /auth/refresh`.
+                                **Cómo probar los endpoints protegidos:** llama a `POST /auth/login`, copia el \
+                                `accessToken` de la respuesta, presiona **Authorize** y pégalo (sin el prefijo \
+                                `Bearer `). Los tokens de acceso duran 15 minutos; renuévalos con `POST /auth/refresh`.
 
-                                Every error uses the same body (`ApiProblem`): `detail` is the Spanish text the app \
-                                shows and `code` is the stable identifier to branch on."""))
-                .addTagsItem(new Tag().name("Auth").description("Sign-up, login and refresh-token lifecycle. Public."))
-                .addTagsItem(new Tag().name("Profile").description("The signed-in user's own account."))
-                .addTagsItem(new Tag().name("Admin").description("User moderation. ADMINISTRATOR role only."))
-                .addTagsItem(new Tag().name("Lookup").description("Reference lists the app caches. Public."))
-                .addServersItem(new Server().url("/").description("This server"))
+                                Todos los errores usan el mismo cuerpo (`ApiProblem`): `detail` es el texto que la app \
+                                muestra tal cual y `code` es el identificador estable para decidir qué hacer."""))
+                .addTagsItem(new Tag().name("Auth").description("Registro, inicio de sesión y renovación de sesión. Públicos."))
+                .addTagsItem(new Tag().name("Profile").description("La cuenta del usuario con sesión iniciada."))
+                .addTagsItem(new Tag().name("Admin").description("Moderación de usuarios. Solo rol ADMINISTRATOR."))
+                .addTagsItem(new Tag().name("Lookup").description("Listas de referencia que la app guarda en caché. Públicas."))
+                .addServersItem(new Server().url("/").description("Este servidor"))
                 .components(new Components()
                         .addSecuritySchemes(BEARER, new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("Access token returned by login, register or refresh."))
-                        .addSchemas(PROBLEM, problem))
+                                .description("Token de acceso que entregan el login, el registro y la renovación de sesión."))
+                        .schemas(problem.referencedSchemas))
                 // Protected by default; public operations opt out with an empty @SecurityRequirements.
                 .addSecurityItem(new SecurityRequirement().addList(BEARER));
     }
@@ -68,12 +68,12 @@ public class OpenApiConfig {
             boolean hasInput = operation.getRequestBody() != null
                     || (operation.getParameters() != null && !operation.getParameters().isEmpty());
             if (hasInput) {
-                add(operation, "400", "Invalid data (`VALIDATION`, `MALFORMED_REQUEST`). `errors` lists each field.");
+                add(operation, "400", "Datos inválidos (`VALIDATION`, `MALFORMED_REQUEST`). `errors` detalla cada campo.");
             }
             if (secured) {
-                add(operation, "401", "Missing, expired or revoked access token (`UNAUTHORIZED`).");
+                add(operation, "401", "Token de acceso ausente, vencido o revocado (`UNAUTHORIZED`).");
             }
-            add(operation, "500", "Unexpected failure (`INTERNAL_ERROR`).");
+            add(operation, "500", "Falla inesperada (`INTERNAL_ERROR`).");
             return operation;
         };
     }

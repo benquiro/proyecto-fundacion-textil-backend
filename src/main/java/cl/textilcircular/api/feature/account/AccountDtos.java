@@ -20,22 +20,22 @@ final class AccountDtos {
                         @Schema(example = "Demo1234") String password) {
     }
 
-    record RefreshRequest(@Schema(description = "Refresh token from the last session response") String refreshToken) {
+    record RefreshRequest(@Schema(description = "Token de refresco de la última respuesta de sesión") String refreshToken) {
     }
 
     record RegisterCustomerRequest(@Schema(example = "cliente@example.cl") String email,
-                                   @Schema(description = "8 to 72 bytes, with letters and digits", example = "Clave1234") String password,
-                                   @Schema(description = "Required for customers", example = "Cliente Textil") String alias) {
+                                   @Schema(description = "De 8 a 72 bytes, con letras y números", example = "Clave1234") String password,
+                                   @Schema(description = "Obligatorio para clientes", example = "Cliente Textil") String alias) {
     }
 
     record BusinessDraft(String name, String description, String photoUrl, Long communeId,
-                         @Schema(description = "1 or 2 distinct textile service ids") List<Long> serviceIds) {
+                         @Schema(description = "1 o 2 ids de servicios textiles distintos") List<Long> serviceIds) {
     }
 
-    record RegisterEntrepreneurRequest(String email, String password, @Schema(description = "Optional") String alias,
-                                       @Schema(description = "Chilean RUT, with or without dots", example = "12345678-5") String rut,
+    record RegisterEntrepreneurRequest(String email, String password, @Schema(description = "Opcional") String alias,
+                                       @Schema(description = "RUT chileno, con o sin puntos", example = "12345678-5") String rut,
                                        String firstName, String lastName, Long ageRangeId, Long genderId,
-                                       @Schema(description = "First business of the entrepreneur") BusinessDraft business) {
+                                       @Schema(description = "Primer emprendimiento de la persona emprendedora") BusinessDraft business) {
     }
 
     record UpdateProfileRequest(String email, String alias, String firstName, String lastName, Long ageRangeId,
@@ -43,7 +43,7 @@ final class AccountDtos {
     }
 
     record ChangePasswordRequest(String currentPassword,
-                                 @Schema(description = "8 to 72 bytes, with letters and digits, different from the current one") String newPassword) {
+                                 @Schema(description = "De 8 a 72 bytes, con letras y números, distinta de la actual") String newPassword) {
     }
 
     record SessionUser(long id, String email, Role role, String alias, AccountStatus status) {
@@ -54,9 +54,9 @@ final class AccountDtos {
         }
     }
 
-    record Session(@Schema(description = "JWT for the Authorization: Bearer header") String accessToken,
-                   @Schema(description = "Single-use token to renew the session") String refreshToken,
-                   @Schema(description = "Access token lifetime in seconds", example = "900") long expiresIn,
+    record Session(@Schema(description = "JWT para el encabezado Authorization: Bearer") String accessToken,
+                   @Schema(description = "Token de un solo uso para renovar la sesión") String refreshToken,
+                   @Schema(description = "Duración del token de acceso en segundos", example = "900") long expiresIn,
                    SessionUser user) {
 
         static Session of(TokenPair tokens, UserAccount account) {
@@ -80,7 +80,7 @@ final class AccountDtos {
         }
     }
 
-    record UserPage(List<SessionUser> content, @Schema(description = "Zero-based") int page, int size,
-                    long totalElements, @Schema(description = "True on the final page") boolean last) {
+    record UserPage(List<SessionUser> content, @Schema(description = "Base cero") int page, int size,
+                    long totalElements, @Schema(description = "Verdadero en la última página") boolean last) {
     }
 }

@@ -5,20 +5,20 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 /** Documentation-only shape of every error body (RFC 9457 problem with the contract's extensions). */
-@Schema(name = "ApiProblem", description = "Error body shared by every endpoint")
+@Schema(name = "ApiProblem", description = "Cuerpo de error compartido por todos los endpoints")
 public record ApiProblem(
-        @Schema(description = "HTTP status", example = "400") int status,
-        @Schema(description = "Stable machine-readable identifier", example = "VALIDATION") String code,
-        @Schema(description = "Spanish text the app shows as is", example = "Revisa los datos ingresados")
+        @Schema(description = "Estado HTTP", example = "400") int status,
+        @Schema(description = "Identificador estable, legible por máquina", example = "VALIDATION") String code,
+        @Schema(description = "Texto en español que la app muestra tal cual", example = "Revisa los datos ingresados")
         String detail,
-        @Schema(description = "HTTP reason phrase", example = "Bad Request") String title,
-        @Schema(description = "Request path", example = "/api/v1/auth/login") String instance,
-        @Schema(description = "One entry per invalid field; only present for `VALIDATION`") List<FieldError> errors) {
+        @Schema(description = "Descripción del estado HTTP", example = "Bad Request") String title,
+        @Schema(description = "Ruta de la petición", example = "/api/v1/auth/login") String instance,
+        @Schema(description = "Una entrada por campo inválido; solo aparece con `VALIDATION`") List<FieldError> errors) {
 
     @Schema(name = "ApiProblemFieldError")
     public record FieldError(
-            @Schema(description = "Field name; nested fields use a dot", example = "email") String field,
-            @Schema(description = "Spanish message for that field", example = "Ingresa un correo válido")
+            @Schema(description = "Nombre del campo; los anidados usan punto", example = "email") String field,
+            @Schema(description = "Mensaje en español para ese campo", example = "Ingresa un correo válido")
             String message) {
     }
 }

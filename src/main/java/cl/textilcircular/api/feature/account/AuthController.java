@@ -25,49 +25,49 @@ class AuthController {
 
     private final AuthService auth;
 
-    @Operation(tags = "Auth", summary = "Register a customer",
-            description = "Creates a CUSTOMER account and starts its session. Password: 8 to 72 bytes, with letters and digits.")
-    @ApiResponse(responseCode = "201", description = "Account created; returns the new session")
-    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: the email already has an account")
+    @Operation(tags = "Auth", summary = "Registrar un cliente",
+            description = "Crea una cuenta CUSTOMER e inicia su sesión. Contraseña: de 8 a 72 bytes, con letras y números.")
+    @ApiResponse(responseCode = "201", description = "Cuenta creada; devuelve la nueva sesión")
+    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: el correo ya tiene una cuenta")
     @PostMapping("/register/customer")
     @ResponseStatus(HttpStatus.CREATED)
     Session registerCustomer(@RequestBody RegisterCustomerRequest request) {
         return auth.registerCustomer(request);
     }
 
-    @Operation(tags = "Auth", summary = "Register an entrepreneur",
-            description = "Creates an ENTREPRENEUR account with its profile and first business, and starts its session. "
-                    + "Business field errors are reported as `business.<field>`.")
-    @ApiResponse(responseCode = "201", description = "Account created; returns the new session")
-    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN` or `RUT_TAKEN`")
+    @Operation(tags = "Auth", summary = "Registrar un emprendedor",
+            description = "Crea una cuenta ENTREPRENEUR con su perfil y su primer emprendimiento, e inicia su sesión. "
+                    + "Los errores del emprendimiento se informan como `business.<campo>`.")
+    @ApiResponse(responseCode = "201", description = "Cuenta creada; devuelve la nueva sesión")
+    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN` o `RUT_TAKEN`")
     @PostMapping("/register/entrepreneur")
     @ResponseStatus(HttpStatus.CREATED)
     Session registerEntrepreneur(@RequestBody RegisterEntrepreneurRequest request) {
         return auth.registerEntrepreneur(request);
     }
 
-    @Operation(tags = "Auth", summary = "Log in", description = "Exchanges email and password for a session. The email is case-insensitive.")
-    @ApiResponse(responseCode = "200", description = "Session started")
-    @ApiResponse(responseCode = "401", description = "`INVALID_CREDENTIALS`: wrong email or password")
-    @ApiResponse(responseCode = "403", description = "`ACCOUNT_NOT_ACTIVE`: the account is deactivated or suspended; "
-            + "`accountStatus` tells which")
+    @Operation(tags = "Auth", summary = "Iniciar sesión", description = "Cambia correo y contraseña por una sesión. El correo no distingue mayúsculas.")
+    @ApiResponse(responseCode = "200", description = "Sesión iniciada")
+    @ApiResponse(responseCode = "401", description = "`INVALID_CREDENTIALS`: correo o contraseña incorrectos")
+    @ApiResponse(responseCode = "403", description = "`ACCOUNT_NOT_ACTIVE`: la cuenta está suspendida; "
+            + "`accountStatus` indica el estado")
     @PostMapping("/login")
     Session login(@RequestBody LoginRequest request) {
         return auth.login(request);
     }
 
-    @Operation(tags = "Auth", summary = "Renew the session",
-            description = "Rotates the refresh token: the one sent is spent and a new pair is returned. "
-                    + "Sending a spent token again revokes the whole session.")
-    @ApiResponse(responseCode = "200", description = "New session tokens")
-    @ApiResponse(responseCode = "401", description = "`UNAUTHORIZED`: the refresh token is unknown, expired or already used")
+    @Operation(tags = "Auth", summary = "Renovar la sesión",
+            description = "Rota el token de refresco: el enviado se consume y se devuelve un par nuevo. "
+                    + "Enviar de nuevo un token ya consumido revoca toda la sesión.")
+    @ApiResponse(responseCode = "200", description = "Nuevos tokens de sesión")
+    @ApiResponse(responseCode = "401", description = "`UNAUTHORIZED`: el token de refresco no existe, venció o ya se usó")
     @PostMapping("/refresh")
     Session refresh(@RequestBody RefreshRequest request) {
         return auth.refresh(request.refreshToken());
     }
 
-    @Operation(tags = "Auth", summary = "Log out", description = "Revokes the session of the given refresh token, which also ends its access token.")
-    @ApiResponse(responseCode = "204", description = "Session ended")
+    @Operation(tags = "Auth", summary = "Cerrar sesión", description = "Revoca la sesión del token de refresco enviado, lo que también termina su token de acceso.")
+    @ApiResponse(responseCode = "204", description = "Sesión terminada")
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void logout(@RequestBody RefreshRequest request) {

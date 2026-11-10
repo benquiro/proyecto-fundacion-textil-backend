@@ -30,81 +30,81 @@ class ProfileController {
 
     private final ProfileService profiles;
 
-    @Operation(summary = "Get my profile", tags = "Profile", description = "Account data, plus the entrepreneur data when the role is ENTREPRENEUR.")
+    @Operation(summary = "Ver mi perfil", tags = "Profile", description = "Datos de la cuenta, más los datos de emprendedor cuando el rol es ENTREPRENEUR.")
     @GetMapping("/me")
     Profile get(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
         return profiles.get(Caller.of(jwt));
     }
 
-    @Operation(summary = "Update my profile", tags = "Profile", description = "`email` is required. `alias` is replaced as sent. `ageRangeId` and `genderId` (and the "
-            + "entrepreneur names) only apply to entrepreneurs; omitting the two ids keeps the current values.")
-    @ApiResponse(responseCode = "200", description = "Updated profile")
-    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: another account uses that email")
+    @Operation(summary = "Actualizar mi perfil", tags = "Profile", description = "`email` es obligatorio. `alias` se reemplaza tal como se envía. `ageRangeId`, `genderId` y los "
+            + "nombres solo aplican a emprendedores; si omites los dos ids se conservan los actuales.")
+    @ApiResponse(responseCode = "200", description = "Perfil actualizado")
+    @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: otra cuenta usa ese correo")
     @PatchMapping("/me")
     Profile update(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @RequestBody UpdateProfileRequest request) {
         return profiles.update(Caller.of(jwt), request);
     }
 
-    @Operation(summary = "Delete my account", tags = "Profile", description = "Frees the email. Only ACTIVE accounts can be deleted.")
-    @ApiResponse(responseCode = "204", description = "Account deleted")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: the account is not active")
+    @Operation(summary = "Eliminar mi cuenta", tags = "Profile", description = "Libera el correo. Solo se pueden eliminar cuentas ACTIVE.")
+    @ApiResponse(responseCode = "204", description = "Cuenta eliminada")
+    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: la cuenta no está activa")
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
         profiles.delete(Caller.of(jwt));
     }
 
-    @Operation(summary = "Change my password", tags = "Profile",
-            description = "Keeps the current session and ends every other one. The new password must differ from the current one.")
-    @ApiResponse(responseCode = "204", description = "Password changed")
+    @Operation(summary = "Cambiar mi contraseña", tags = "Profile",
+            description = "Conserva la sesión actual y termina todas las demás. La nueva contraseña debe ser distinta de la actual.")
+    @ApiResponse(responseCode = "204", description = "Contraseña cambiada")
     @PutMapping("/me/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void changePassword(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @RequestBody ChangePasswordRequest request) {
         profiles.changePassword(Caller.of(jwt), request);
     }
 
-    @Operation(summary = "Deactivate my account", tags = "Profile", description = "Logging in again reactivates the account.")
-    @ApiResponse(responseCode = "204", description = "Account deactivated")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: the account is not active")
+    @Operation(summary = "Desactivar mi cuenta", tags = "Profile", description = "Volver a iniciar sesión reactiva la cuenta.")
+    @ApiResponse(responseCode = "204", description = "Cuenta desactivada")
+    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: la cuenta no está activa")
     @PostMapping("/me/deactivation")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void deactivate(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
         profiles.deactivate(Caller.of(jwt));
     }
 
-    @Operation(summary = "List users (administrator)", tags = "Admin",
-            description = "Paged list of every account. Requires the ADMINISTRATOR role.")
-    @ApiResponse(responseCode = "200", description = "One page of users")
-    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: the caller is not an administrator")
+    @Operation(summary = "Listar usuarios (administrador)", tags = "Admin",
+            description = "Lista paginada de todas las cuentas. Requiere el rol ADMINISTRATOR.")
+    @ApiResponse(responseCode = "200", description = "Una página de usuarios")
+    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: quien llama no es administrador")
     @GetMapping("/admin/users")
     UserPage listUsers(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
-                       @Parameter(description = "Zero-based page number") @RequestParam(defaultValue = "0") int page,
-                       @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size) {
+                       @Parameter(description = "Número de página, desde 0") @RequestParam(defaultValue = "0") int page,
+                       @Parameter(description = "Tamaño de página") @RequestParam(defaultValue = "20") int size) {
         return profiles.listUsers(Caller.of(jwt), page, size);
     }
 
-    @Operation(summary = "Suspend a user (administrator)", tags = "Admin",
-            description = "The user can no longer log in. Works on ACTIVE and DEACTIVATED accounts. "
-                    + "Administrators cannot change their own status.")
-    @ApiResponse(responseCode = "204", description = "User suspended")
-    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: not an administrator, or the target is the caller")
-    @ApiResponse(responseCode = "404", description = "`NOT_FOUND`: no such user")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: the user is neither active nor deactivated")
+    @Operation(summary = "Suspender un usuario (administrador)", tags = "Admin",
+            description = "El usuario ya no puede iniciar sesión. Funciona con cuentas ACTIVE y DEACTIVATED. "
+                    + "Un administrador no puede cambiar su propio estado.")
+    @ApiResponse(responseCode = "204", description = "Usuario suspendido")
+    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: no es administrador, o el usuario objetivo es quien llama")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND`: el usuario no existe")
+    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: el usuario no está activo ni desactivado")
     @PutMapping("/admin/users/{userId}/suspension")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void suspend(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @Parameter(description = "Account id") @PathVariable long userId) {
+    void suspend(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @Parameter(description = "Id de la cuenta") @PathVariable long userId) {
         profiles.suspend(Caller.of(jwt), userId);
     }
 
-    @Operation(summary = "Reactivate a suspended user (administrator)", tags = "Admin",
-            description = "Works on SUSPENDED and DEACTIVATED accounts, so the user can log in again.")
-    @ApiResponse(responseCode = "204", description = "User reactivated")
-    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: not an administrator, or the target is the caller")
-    @ApiResponse(responseCode = "404", description = "`NOT_FOUND`: no such user")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: the user is neither suspended nor deactivated")
+    @Operation(summary = "Reactivar un usuario suspendido (administrador)", tags = "Admin",
+            description = "Funciona con cuentas SUSPENDED y DEACTIVATED, para que el usuario pueda iniciar sesión de nuevo.")
+    @ApiResponse(responseCode = "204", description = "Usuario reactivado")
+    @ApiResponse(responseCode = "403", description = "`FORBIDDEN`: no es administrador, o el usuario objetivo es quien llama")
+    @ApiResponse(responseCode = "404", description = "`NOT_FOUND`: el usuario no existe")
+    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: el usuario no está suspendido ni desactivado")
     @DeleteMapping("/admin/users/{userId}/suspension")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void reactivate(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @Parameter(description = "Account id") @PathVariable long userId) {
+    void reactivate(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @Parameter(description = "Id de la cuenta") @PathVariable long userId) {
         profiles.reactivate(Caller.of(jwt), userId);
     }
 }

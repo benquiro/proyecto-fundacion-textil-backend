@@ -43,39 +43,39 @@ public class LookupController {
     public record ServiceResponse(@Schema(example = "1") long id, @Schema(example = "Arreglos") String name) {
     }
 
-    @Schema(name = "DescribedItem", description = "Age range or gender")
+    @Schema(name = "DescribedItem", description = "Rango etario o género")
     public record DescribedResponse(@Schema(example = "1") long id, @Schema(example = "18 a 24") String description) {
     }
 
-    @Operation(tags = "Lookup", summary = "List regions", description = "Ordered as the app shows them.")
+    @Operation(tags = "Lookup", summary = "Listar regiones", description = "En el orden en que la app las muestra.")
     @GetMapping("/regions")
     public List<RegionResponse> regions() {
         return regions.findAllByOrderBySortOrderAsc().stream()
                 .map(r -> new RegionResponse(r.getId(), r.getName())).toList();
     }
 
-    @Operation(tags = "Lookup", summary = "List communes", description = "Alphabetical; filter by region with `regionId`.")
+    @Operation(tags = "Lookup", summary = "Listar comunas", description = "En orden alfabético; filtra por región con `regionId`.")
     @GetMapping("/communes")
-    public List<CommuneResponse> communes(@Parameter(description = "Only communes of this region") @RequestParam(required = false) Long regionId) {
+    public List<CommuneResponse> communes(@Parameter(description = "Solo las comunas de esta región") @RequestParam(required = false) Long regionId) {
         var found = regionId == null ? communes.findAllByOrderByNameAsc() : communes.findByRegionIdOrderByNameAsc(regionId);
         return found.stream().map(c -> new CommuneResponse(c.getId(), c.getRegion().getId(), c.getName())).toList();
     }
 
-    @Operation(tags = "Lookup", summary = "List textile services", description = "Only active services, alphabetical.")
+    @Operation(tags = "Lookup", summary = "Listar servicios textiles", description = "Solo los servicios activos, en orden alfabético.")
     @GetMapping("/services")
     public List<ServiceResponse> services() {
         return services.findByActiveTrueOrderByNameAsc().stream()
                 .map(s -> new ServiceResponse(s.getId(), s.getName())).toList();
     }
 
-    @Operation(tags = "Lookup", summary = "List age ranges", description = "Ordered as the app shows them.")
+    @Operation(tags = "Lookup", summary = "Listar rangos etarios", description = "En el orden en que la app los muestra.")
     @GetMapping("/age-ranges")
     public List<DescribedResponse> ageRanges() {
         return ageRanges.findAllByOrderBySortOrderAsc().stream()
                 .map(a -> new DescribedResponse(a.getId(), a.getDescription())).toList();
     }
 
-    @Operation(tags = "Lookup", summary = "List genders", description = "Ordered by id.")
+    @Operation(tags = "Lookup", summary = "Listar géneros", description = "Ordenados por id.")
     @GetMapping("/genders")
     public List<DescribedResponse> genders() {
         return genders.findAllByOrderByIdAsc().stream()
