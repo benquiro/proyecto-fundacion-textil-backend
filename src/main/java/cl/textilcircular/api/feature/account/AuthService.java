@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 class AuthService {
+
+    /** How soon after a rotation the same token may be sent again without counting as a replay. */
+    private static final Duration RETRY_WINDOW = Duration.ofSeconds(10);
 
     private final UserAccountRepository accounts;
     private final EntrepreneurRepository entrepreneurs;
@@ -102,12 +106,17 @@ class AuthService {
 
     /**
      * Rotation: the token sent is revoked and a new pair is returned. A token that was already rotated
-     * has leaked (or its new pair was lost), so every session of the account ends.
+     * has leaked (or its new pair was lost), so every session of the account ends. The exception is a
+     * retry right after the rotation (a timed-out response, two components refreshing at once): it
+     * is refused, but the other sessions stay.
      */
     @Transactional(noRollbackFor = UnauthorizedException.class)
     Session refresh(String rawRefreshToken) {
         Instant now = clock.instant();
         RefreshToken token = findToken(rawRefreshToken).orElseThrow(UnauthorizedException::new);
+        if (token.wasRotatedWithin(RETRY_WINDOW, now)) {
+            throw new UnauthorizedException();
+        }
         if (token.wasRotated()) {
             refreshTokens.revokeAllActive(token.getAccount().getId(), now);
             throw new UnauthorizedException();

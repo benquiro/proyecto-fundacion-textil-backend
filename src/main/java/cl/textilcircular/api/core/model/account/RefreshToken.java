@@ -84,6 +84,11 @@ public class RefreshToken extends BaseEntity {
         rotatedAt = now;
     }
 
+    /** Whether this token was rotated at most {@code window} before {@code now}: a retry, not a replay. */
+    public boolean wasRotatedWithin(Duration window, Instant now) {
+        return rotatedAt != null && !rotatedAt.plus(window).isBefore(now);
+    }
+
     public boolean wasRotated() {
         return rotatedAt != null;
     }

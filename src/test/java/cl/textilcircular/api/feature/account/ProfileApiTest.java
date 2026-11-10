@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -28,6 +29,8 @@ class ProfileApiTest {
     UserAccountRepository accounts;
     @Autowired
     PasswordEncoder encoder;
+    @Autowired
+    JdbcTemplate jdbc;
 
     ResultActions call(HttpMethod method, String path, String token, String json) throws Exception {
         var builder = request(method, "/api/v1" + path).contentType(MediaType.APPLICATION_JSON);
@@ -147,10 +150,24 @@ class ProfileApiTest {
     }
 
     @Test
-    void reusing_a_rotated_refresh_token_ends_every_session() throws Exception {
+    void retrying_a_token_right_after_its_rotation_is_refused_but_keeps_the_sessions() throws Exception {
         Tokens phone = signUp("cami@demo.cl");
         Tokens tablet = login("cami@demo.cl", "Secreta123");
         String rotated = refresh(phone.refresh());
+
+        call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(phone.refresh()))
+                .andExpect(status().isUnauthorized());
+        call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(rotated))
+                .andExpect(status().isOk());
+        call(HttpMethod.GET, "/me", tablet.access(), null).andExpect(status().isOk());
+    }
+
+    @Test
+    void replaying_a_rotated_refresh_token_later_ends_every_session() throws Exception {
+        Tokens phone = signUp("cami@demo.cl");
+        Tokens tablet = login("cami@demo.cl", "Secreta123");
+        String rotated = refresh(phone.refresh());
+        jdbc.update("UPDATE refresh_token SET rotated_at = rotated_at - interval '1 minute' WHERE rotated_at IS NOT NULL");
 
         call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(phone.refresh()))
                 .andExpect(status().isUnauthorized());
