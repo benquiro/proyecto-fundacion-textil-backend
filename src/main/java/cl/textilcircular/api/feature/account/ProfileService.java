@@ -92,9 +92,12 @@ class ProfileService {
         refreshTokens.revokeAllActive(account.getId(), now);
     }
 
-    /** Soft delete plus anonymization; the business leaves the directory with the account. */
+    /**
+     * Soft delete plus anonymization; the business leaves the directory with the account. Only an active
+     * account may delete itself, so a suspension cannot be escaped by deleting and signing up again.
+     */
     void delete(Caller caller) {
-        UserAccount account = existingAccount(caller.userId());
+        UserAccount account = activeAccount(caller);
         Instant now = clock.instant();
         account.delete(now);
         Entrepreneur entrepreneur = entrepreneurOf(account);

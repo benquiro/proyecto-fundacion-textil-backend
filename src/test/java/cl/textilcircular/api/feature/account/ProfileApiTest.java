@@ -153,6 +153,9 @@ class ProfileApiTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.accountStatus").value("SUSPENDED"))
                 .andExpect(jsonPath("$.detail").value("Tu cuenta está suspendida"));
+        call(HttpMethod.DELETE, "/me", cami.access(), null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.accountStatus").value("SUSPENDED"));
 
         call(HttpMethod.DELETE, "/admin/users/" + cami.userId() + "/suspension", admin.access(), null)
                 .andExpect(status().isNoContent());
