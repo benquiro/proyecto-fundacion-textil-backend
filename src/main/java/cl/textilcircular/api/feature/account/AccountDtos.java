@@ -68,6 +68,6 @@ final class AccountDtos {
         }
     }
 
-    record UserPage(List<SessionUser> content, int page, int size, long totalElements, int totalPages) {
+    record UserPage(List<SessionUser> content, int page, int size, long totalElements, boolean last) {
     }
 }
