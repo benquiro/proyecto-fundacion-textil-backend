@@ -25,7 +25,12 @@ class SessionValidator implements OAuth2TokenValidator<Jwt> {
 
     @Override
     public OAuth2TokenValidatorResult validate(Jwt jwt) {
-        Long sessionId = Caller.of(jwt).sessionId();
+        Long sessionId;
+        try {
+            sessionId = Caller.of(jwt).sessionId();
+        } catch (NumberFormatException e) {
+            return ENDED;
+        }
         return sessionId != null && refreshTokens.isActive(sessionId, clock.instant())
                 ? OAuth2TokenValidatorResult.success()
                 : ENDED;

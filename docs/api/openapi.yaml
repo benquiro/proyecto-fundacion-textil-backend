@@ -164,14 +164,11 @@ paths:
     delete:
       tags: [profile]
       operationId: deleteAccount
-      description: Not used by the app yet. Soft delete plus anonymization. Only an ACTIVE account can delete itself.
+      description: |
+        Not used by the app yet. Soft delete plus anonymization. Only an ACTIVE account can delete
+        itself: suspension and deactivation end every session, so their tokens get 401.
       responses:
         '204': { description: "Account deleted" }
-        '403':
-          description: The account is not ACTIVE (`ACCOUNT_NOT_ACTIVE`, with `accountStatus`).
-          content:
-            application/problem+json:
-              schema: { $ref: '#/components/schemas/Problem' }
   /me/password:
     put:
       tags: [profile]
