@@ -48,6 +48,7 @@ class AuthController {
 
     @Operation(tags = "Auth", summary = "Iniciar sesión", description = "Cambia correo y contraseña por una sesión. El correo no distingue mayúsculas.")
     @ApiResponse(responseCode = "200", description = "Sesión iniciada")
+    @ApiResponse(responseCode = "400", description = "`VALIDATION`: el correo no tiene un formato válido")
     @ApiResponse(responseCode = "401", description = "`INVALID_CREDENTIALS`: correo o contraseña incorrectos")
     @ApiResponse(responseCode = "403", description = "`ACCOUNT_NOT_ACTIVE`: la cuenta está suspendida; "
             + "`accountStatus` indica el estado")

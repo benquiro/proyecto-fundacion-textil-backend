@@ -47,7 +47,7 @@ class ProfileController {
 
     @Operation(summary = "Eliminar mi cuenta", tags = "Profile", description = "Libera el correo. Solo se pueden eliminar cuentas ACTIVE.")
     @ApiResponse(responseCode = "204", description = "Cuenta eliminada")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: la cuenta no está activa")
+    @ApiResponse(responseCode = "403", description = "`ACCOUNT_NOT_ACTIVE`: la cuenta ya no está activa")
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
@@ -65,7 +65,7 @@ class ProfileController {
 
     @Operation(summary = "Desactivar mi cuenta", tags = "Profile", description = "Volver a iniciar sesión reactiva la cuenta.")
     @ApiResponse(responseCode = "204", description = "Cuenta desactivada")
-    @ApiResponse(responseCode = "409", description = "`INVALID_ACCOUNT_STATUS`: la cuenta no está activa")
+    @ApiResponse(responseCode = "403", description = "`ACCOUNT_NOT_ACTIVE`: la cuenta ya no está activa")
     @PostMapping("/me/deactivation")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void deactivate(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {

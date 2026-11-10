@@ -12,10 +12,10 @@ info:
     - Protected operations need `Authorization: Bearer <accessToken>`. The caller's identity,
       role and ownership always come from the token, never from the request body.
     - Errors use `application/problem+json` (RFC 9457) with two extensions: `code`
-      (stable, machine readable) and `errors` (one entry per invalid field).
+      (stable, machine readable) and `errors` (the invalid field; the backend reports the first one it finds).
       `detail` and `errors[].message` are user-facing Spanish text the app shows as is.
     - Lists that can grow are paginated with `page` (0-based) and `size` (default 20, max 50).
-    - Null properties may be omitted from responses.
+    - Absent values are sent as `null`, so clients must accept both a `null` and a missing property.
 servers:
   - url: http://10.0.2.2:8080/api/v1
     description: Local backend seen from the Android emulator
@@ -76,6 +76,7 @@ paths:
             schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
         '200': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
         '401':
           description: Unknown email or wrong password (`INVALID_CREDENTIALS`).
           content:
@@ -88,7 +89,7 @@ paths:
                 code: INVALID_CREDENTIALS
                 detail: Correo o contraseña incorrectos
         '403':
-          description: Credentials are right but the account is not ACTIVE (`ACCOUNT_NOT_ACTIVE`, with `accountStatus`).
+          description: Credentials are right but the account is SUSPENDED (`ACCOUNT_NOT_ACTIVE`, with `accountStatus`). A deactivated account is reactivated by logging in; a deleted one answers like an unknown account.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -160,6 +161,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Profile' }
         '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403':
+          description: The account is no longer ACTIVE (`ACCOUNT_NOT_ACTIVE`). Normally its token already got 401, because suspension and deactivation end every session.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '409': { $ref: '#/components/responses/Conflict' }
     delete:
       tags: [profile]
@@ -169,6 +175,11 @@ paths:
         itself: suspension and deactivation end every session, so their tokens get 401.
       responses:
         '204': { description: "Account deleted" }
+        '403':
+          description: The account is no longer ACTIVE (`ACCOUNT_NOT_ACTIVE`). Normally its token already got 401, because suspension and deactivation end every session.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /me/password:
     put:
       tags: [profile]
@@ -182,6 +193,11 @@ paths:
       responses:
         '204': { description: "Password changed" }
         '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403':
+          description: The account is no longer ACTIVE (`ACCOUNT_NOT_ACTIVE`). Normally its token already got 401, because suspension and deactivation end every session.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /me/deactivation:
     post:
       tags: [profile]
@@ -189,6 +205,11 @@ paths:
       description: Not used by the app yet.
       responses:
         '204': { description: "Account deactivated" }
+        '403':
+          description: The account is no longer ACTIVE (`ACCOUNT_NOT_ACTIVE`). Normally its token already got 401, because suspension and deactivation end every session.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /regions:
     get:
@@ -821,7 +842,8 @@ components:
       description: |
         The request clashes with the current state. Codes: `EMAIL_TAKEN`, `RUT_TAKEN`, `ALREADY_VOTED`,
         `NOT_PENDING_REVIEW`, `MESSAGE_ID_CONFLICT`, `BUSINESS_DELETED`, `PRODUCT_DELETED`,
-        `CONTENT_DELETED`, `INVALID_ACCOUNT_STATUS`, `REPORT_ALREADY_OPEN`.
+        `CONTENT_DELETED`, `INVALID_ACCOUNT_STATUS`, `REPORT_ALREADY_OPEN`. `CONFLICT` is the generic code
+        for a concurrent change (a unique key or version clash) and the request can be retried.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -835,8 +857,14 @@ components:
         type: { type: string }
         title: { type: string }
         status: { type: integer }
-        code: { type: string }
+        code:
+          type: string
+          description: |
+            Stable code. Besides the ones named per operation: `VALIDATION`, `MALFORMED_REQUEST` (unreadable
+            JSON or a wrong JSON type), `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
+            `METHOD_NOT_ALLOWED`, `CONFLICT`, `UNSUPPORTED_MEDIA_TYPE` and `INTERNAL_ERROR`.
         detail: { type: string }
+        instance: { type: string, description: Path of the request. }
         accountStatus: { $ref: '#/components/schemas/AccountStatus' }
         errors:
           type: array
@@ -892,14 +920,14 @@ components:
       required: [email, password, alias]
       properties:
         email: { type: string, maxLength: 254 }
-        password: { type: string, minLength: 8, description: "At least one letter and one digit." }
+        password: { type: string, minLength: 8, description: "At least one letter and one digit; at most 72 bytes." }
         alias: { type: string, maxLength: 40 }
     RegisterEntrepreneurRequest:
       type: object
       required: [email, password, rut, firstName, lastName, ageRangeId, genderId, business]
       properties:
         email: { type: string, maxLength: 254 }
-        password: { type: string, minLength: 8 }
+        password: { type: string, minLength: 8, description: "Same rules as for customers (at most 72 bytes)." }
         alias: { type: [string, 'null'], maxLength: 40 }
         rut: { type: string, description: 'Any common format; stored as `12345678-5`.' }
         firstName: { type: string, maxLength: 60 }
@@ -928,8 +956,8 @@ components:
       properties:
         email: { type: string, maxLength: 254 }
         alias: { type: [string, 'null'], maxLength: 40 }
-        firstName: { type: [string, 'null'], maxLength: 60 }
-        lastName: { type: [string, 'null'], maxLength: 60 }
+        firstName: { type: [string, 'null'], maxLength: 60, description: "Required for entrepreneurs." }
+        lastName: { type: [string, 'null'], maxLength: 60, description: "Required for entrepreneurs." }
         ageRangeId: { type: [integer, 'null'], format: int64 }
         genderId: { type: [integer, 'null'], format: int64 }
     ChangePasswordRequest:
@@ -937,7 +965,7 @@ components:
       required: [currentPassword, newPassword]
       properties:
         currentPassword: { type: string }
-        newPassword: { type: string, minLength: 8 }
+        newPassword: { type: string, minLength: 8, description: "Same rules as at sign-up (at most 72 bytes); it must differ from the current one." }
 
     Region:
       type: object
@@ -1039,8 +1067,8 @@ components:
       required: [name, description, communeId, serviceIds]
       properties:
         name: { type: string, maxLength: 100 }
-        description: { type: string, minLength: 50, maxLength: 500 }
-        photoUrl: { type: [string, 'null'], maxLength: 500 }
+        description: { type: string, maxLength: 500 }
+        photoUrl: { type: [string, 'null'], maxLength: 500, description: "`http(s)://` URL or a `/media/<file>` path." }
         communeId: { type: integer, format: int64 }
         serviceIds:
           type: array
