@@ -6,6 +6,8 @@ import cl.textilcircular.api.core.model.account.Role;
 import cl.textilcircular.api.core.model.account.UserAccount;
 import cl.textilcircular.api.core.security.TokenService.TokenPair;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
 
 /** Request and response bodies of the account endpoints, as named in the API contract. */
@@ -14,27 +16,34 @@ final class AccountDtos {
     private AccountDtos() {
     }
 
-    record LoginRequest(String email, String password) {
+    record LoginRequest(@Schema(example = "valentina.mora@example.cl") String email,
+                        @Schema(example = "Demo1234") String password) {
     }
 
-    record RefreshRequest(String refreshToken) {
+    record RefreshRequest(@Schema(description = "Refresh token from the last session response") String refreshToken) {
     }
 
-    record RegisterCustomerRequest(String email, String password, String alias) {
+    record RegisterCustomerRequest(@Schema(example = "cliente@example.cl") String email,
+                                   @Schema(description = "8 to 72 bytes, with letters and digits", example = "Clave1234") String password,
+                                   @Schema(description = "Required for customers", example = "Cliente Textil") String alias) {
     }
 
-    record BusinessDraft(String name, String description, String photoUrl, Long communeId, List<Long> serviceIds) {
+    record BusinessDraft(String name, String description, String photoUrl, Long communeId,
+                         @Schema(description = "1 or 2 distinct textile service ids") List<Long> serviceIds) {
     }
 
-    record RegisterEntrepreneurRequest(String email, String password, String alias, String rut, String firstName,
-                                       String lastName, Long ageRangeId, Long genderId, BusinessDraft business) {
+    record RegisterEntrepreneurRequest(String email, String password, @Schema(description = "Optional") String alias,
+                                       @Schema(description = "Chilean RUT, with or without dots", example = "12345678-5") String rut,
+                                       String firstName, String lastName, Long ageRangeId, Long genderId,
+                                       @Schema(description = "First business of the entrepreneur") BusinessDraft business) {
     }
 
     record UpdateProfileRequest(String email, String alias, String firstName, String lastName, Long ageRangeId,
                                 Long genderId) {
     }
 
-    record ChangePasswordRequest(String currentPassword, String newPassword) {
+    record ChangePasswordRequest(String currentPassword,
+                                 @Schema(description = "8 to 72 bytes, with letters and digits, different from the current one") String newPassword) {
     }
 
     record SessionUser(long id, String email, Role role, String alias, AccountStatus status) {
@@ -45,7 +54,10 @@ final class AccountDtos {
         }
     }
 
-    record Session(String accessToken, String refreshToken, long expiresIn, SessionUser user) {
+    record Session(@Schema(description = "JWT for the Authorization: Bearer header") String accessToken,
+                   @Schema(description = "Single-use token to renew the session") String refreshToken,
+                   @Schema(description = "Access token lifetime in seconds", example = "900") long expiresIn,
+                   SessionUser user) {
 
         static Session of(TokenPair tokens, UserAccount account) {
             return new Session(tokens.accessToken(), tokens.refreshToken(), tokens.expiresIn(), SessionUser.of(account));
@@ -68,6 +80,7 @@ final class AccountDtos {
         }
     }
 
-    record UserPage(List<SessionUser> content, int page, int size, long totalElements, boolean last) {
+    record UserPage(List<SessionUser> content, @Schema(description = "Zero-based") int page, int size,
+                    long totalElements, @Schema(description = "True on the final page") boolean last) {
     }
 }
