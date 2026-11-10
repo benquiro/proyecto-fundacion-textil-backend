@@ -659,7 +659,7 @@ paths:
     put:
       tags: [messaging]
       operationId: blockConversation
-      description: Blocks the conversation: nobody can send messages in it. Participants only.
+      description: "Blocks the conversation: nobody can send messages in it. Participants only."
       responses:
         '204': { description: "Blocked" }
         '403': { $ref: '#/components/responses/Forbidden' }

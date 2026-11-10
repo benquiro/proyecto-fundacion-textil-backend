@@ -51,8 +51,10 @@ The REST API lives under `/api/v1` and follows `docs/api/openapi.yaml`. Protecte
 
 ### With the Android app on the emulator
 
-Android 17 blocks apps that target SDK 37 from reaching local network addresses such as `10.0.2.2`
-without the `ACCESS_LOCAL_NETWORK` permission. Forward the port instead and build the app against loopback:
+The debug app reaches this backend at `http://10.0.2.2:8080/api/v1/`. Android 17 treats that address as
+local network, so on first launch the app asks for the nearby devices permission (`ACCESS_LOCAL_NETWORK`).
+Allow it; if it is denied, every call fails with "Sin conexión". To skip the permission, forward the port
+and build the app against loopback:
 
 ```bash
 adb reverse tcp:8080 tcp:8080
