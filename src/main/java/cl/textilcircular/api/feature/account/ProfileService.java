@@ -78,11 +78,7 @@ class ProfileService {
     void changePassword(Caller caller, ChangePasswordRequest request) {
         UserAccount account = activeAccount(caller);
         account.changePassword(request.currentPassword(), request.newPassword(), passwordEncoder);
-        if (caller.sessionId() == null) {
-            refreshTokens.revokeAllActive(account.getId(), clock.instant());
-        } else {
-            refreshTokens.revokeAllActiveExcept(account.getId(), caller.sessionId(), clock.instant());
-        }
+        refreshTokens.revokeAllActiveExcept(account.getId(), caller.sessionId(), clock.instant());
     }
 
     void deactivate(Caller caller) {
