@@ -24,6 +24,8 @@ import cl.textilcircular.api.feature.account.AccountDtos.LoginRequest;
 import cl.textilcircular.api.feature.account.AccountDtos.RegisterCustomerRequest;
 import cl.textilcircular.api.feature.account.AccountDtos.RegisterEntrepreneurRequest;
 import cl.textilcircular.api.feature.account.AccountDtos.Session;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,7 @@ class AuthService {
     private final TextileServiceRepository services;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final EntityManager entityManager;
     private final Clock clock;
 
     /** Compared against when the email is unknown, so both failures take the same time. */
@@ -94,7 +97,7 @@ class AuthService {
             throw new InvalidCredentialsException();
         }
         account.authenticate(request.password(), passwordEncoder, now);
-        return Session.of(tokenService.issue(account, now), account);
+        return startSession(account, now);
     }
 
     /**
@@ -117,6 +120,16 @@ class AuthService {
         if (!account.isActive()) {
             throw new UnauthorizedException();
         }
+        return startSession(account, now);
+    }
+
+    /**
+     * Ending sessions (suspension, deactivation, password change) is a bulk update that cannot see a
+     * token inserted at the same moment. Bumping the account's version makes a login or refresh that
+     * races with one of those changes fail with a conflict instead of leaving a live session behind.
+     */
+    private Session startSession(UserAccount account, Instant now) {
+        entityManager.lock(account, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
         return Session.of(tokenService.issue(account, now), account);
     }
 
