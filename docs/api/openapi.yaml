@@ -1484,7 +1484,8 @@ x-websocket:
   url: /api/v1/ws
   description: |
     Canal en tiempo real que reemplaza las notificaciones push. El cliente se conecta con
-    `Authorization: Bearer <accessToken>` en el handshake y solo recibe eventos; toda escritura sigue
+    `Authorization: Bearer <accessToken>` en el handshake; un token inválido, expirado o de una sesión
+    cerrada se rechaza con 401 antes del upgrade. El cliente solo recibe eventos; toda escritura sigue
     pasando por REST. Los frames son texto JSON: `{ "type": "...", "data": { ... } }`.
     El cliente ignora los tipos desconocidos. Al reconectarse llama a `GET /conversations` y
     `GET /conversations/{id}/messages?afterId=` para ponerse al día, así que el servidor no guarda pendientes.
@@ -1501,5 +1502,13 @@ x-websocket:
     message.read:
       description: Se envía al remitente cuando la contraparte lee la conversación.
       data:
-        conversationId: integer
-        readAt: date-time
+        type: object
+        required: [conversationId, readAt]
+        properties:
+          conversationId: { type: integer, format: int64 }
+          readAt: { type: string, format: date-time }
+  examples:
+    message.created: |
+      {"type":"message.created","data":{"id":812,"conversationId":31,"clientUuid":"5f0c2a8e-4b1d-4c7a-9e3f-2d6b8a1c9e70","senderId":42,"content":"Hola, ¿tienen talla M?","sentAt":"2026-11-09T14:30:00Z","readAt":null,"senderName":"Camila"}}
+    message.read: |
+      {"type":"message.read","data":{"conversationId":31,"readAt":"2026-11-09T14:35:12Z"}}
