@@ -10,10 +10,16 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -31,6 +37,8 @@ class ProfileApiTest {
     PasswordEncoder encoder;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    JwtEncoder jwtEncoder;
 
     ResultActions call(HttpMethod method, String path, String token, String json) throws Exception {
         var builder = request(method, "/api/v1" + path).contentType(MediaType.APPLICATION_JSON);
@@ -175,6 +183,39 @@ class ProfileApiTest {
                 .andExpect(status().isUnauthorized());
         call(HttpMethod.GET, "/me", tablet.access(), null).andExpect(status().isUnauthorized());
         login("cami@demo.cl", "Secreta123");
+    }
+
+    static final String ENTREPRENEUR = """
+            {"email":"ana@demo.cl","password":"Secreta123","rut":"11111111-1","firstName":"Ana",
+             "lastName":"Pérez","ageRangeId":2,"genderId":1,
+             "business":{"name":"Hilos de Ana","description":"Reparación y transformación de prendas con técnicas de costura a mano.",
+                         "communeId":1,"serviceIds":[2]}}""";
+
+    @Test
+    void deleting_an_entrepreneur_ends_the_session_and_frees_email_and_rut() throws Exception {
+        Tokens ana = session(call(HttpMethod.POST, "/auth/register/entrepreneur", null, ENTREPRENEUR));
+
+        call(HttpMethod.DELETE, "/me", ana.access(), null).andExpect(status().isNoContent());
+
+        call(HttpMethod.GET, "/me", ana.access(), null).andExpect(status().isUnauthorized());
+        call(HttpMethod.POST, "/auth/login", null, "{\"email\":\"ana@demo.cl\",\"password\":\"Secreta123\"}")
+                .andExpect(status().isUnauthorized());
+        call(HttpMethod.POST, "/auth/register/entrepreneur", null, ENTREPRENEUR).andExpect(status().isCreated());
+    }
+
+    @Test
+    void an_access_token_with_a_malformed_subject_or_session_is_a_plain_401() throws Exception {
+        Instant now = Instant.now();
+        for (JwtClaimsSet.Builder claims : new JwtClaimsSet.Builder[]{
+                JwtClaimsSet.builder().subject("not-a-number").claim("sid", 1L),
+                JwtClaimsSet.builder().subject("1").claim("sid", "x")}) {
+            String token = jwtEncoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(),
+                    claims.claim("role", "CUSTOMER").issuedAt(now).expiresAt(now.plus(5, ChronoUnit.MINUTES)).build()))
+                    .getTokenValue();
+            call(HttpMethod.GET, "/me", token, null)
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        }
     }
 
     @Test
