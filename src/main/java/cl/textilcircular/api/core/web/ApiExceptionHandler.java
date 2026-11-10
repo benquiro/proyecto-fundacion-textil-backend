@@ -4,6 +4,7 @@ import cl.textilcircular.api.core.error.ConflictException;
 import cl.textilcircular.api.core.error.DomainException;
 import cl.textilcircular.api.core.error.ForbiddenException;
 import cl.textilcircular.api.core.error.NotFoundException;
+import cl.textilcircular.api.core.error.UnauthorizedException;
 import cl.textilcircular.api.core.error.ValidationException;
 import cl.textilcircular.api.core.model.account.AccountNotActiveException;
 import cl.textilcircular.api.core.model.account.InvalidCredentialsException;
@@ -48,6 +49,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = Problems.of(HttpStatus.FORBIDDEN, "ACCOUNT_NOT_ACTIVE", e.getMessage());
         problem.setProperty("accountStatus", e.getStatus());
         return problem;
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    ProblemDetail unauthorized(UnauthorizedException e) {
+        return Problems.of(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", e.getMessage());
     }
 
     @ExceptionHandler(ForbiddenException.class)
