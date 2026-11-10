@@ -6,9 +6,11 @@ import cl.textilcircular.api.core.error.ForbiddenException;
 import cl.textilcircular.api.core.error.NotFoundException;
 import cl.textilcircular.api.core.error.UnauthorizedException;
 import cl.textilcircular.api.core.error.ValidationException;
+import cl.textilcircular.api.core.model.account.AccountErrors;
 import cl.textilcircular.api.core.model.account.AccountNotActiveException;
 import cl.textilcircular.api.core.model.account.InvalidCredentialsException;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -72,11 +74,29 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return Problems.of(HttpStatus.BAD_REQUEST, "BAD_REQUEST", e.getMessage());
     }
 
-    /** Unique keys hit by a concurrent request after the service's own check passed. */
+    /**
+     * Unique keys hit by a concurrent request after the service's own check passed. The two the app
+     * has a message for keep their code; only the constraint name is logged, never the offending value.
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail dataIntegrity(DataIntegrityViolationException e) {
-        log.info("Rejected by a database constraint: {}", e.getMostSpecificCause().getMessage());
-        return Problems.of(HttpStatus.CONFLICT, "CONFLICT", "Los datos cambiaron mientras guardabas. Inténtalo de nuevo");
+        String constraint = constraintName(e);
+        log.info("Rejected by a database constraint: {}", constraint);
+        return switch (constraint == null ? "" : constraint) {
+            case "uk_user_account_email" -> conflict(AccountErrors.emailTaken());
+            case "uk_entrepreneur_rut" -> conflict(AccountErrors.rutTaken());
+            default -> Problems.of(HttpStatus.CONFLICT, "CONFLICT",
+                    "Los datos cambiaron mientras guardabas. Inténtalo de nuevo");
+        };
+    }
+
+    private static @Nullable String constraintName(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation) {
+                return violation.getConstraintName();
+            }
+        }
+        return null;
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
