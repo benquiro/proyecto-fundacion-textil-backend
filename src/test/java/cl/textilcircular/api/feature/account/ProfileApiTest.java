@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.time.Instant;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -113,6 +114,16 @@ class ProfileApiTest {
         call(HttpMethod.POST, "/auth/refresh", null, "{\"refreshToken\":\"%s\"}".formatted(first.refresh()))
                 .andExpect(status().isOk());
         login("cami@demo.cl", "Nueva1234");
+    }
+
+    @Test
+    void a_request_without_a_token_gets_the_common_error_body_and_a_bearer_challenge() throws Exception {
+        call(HttpMethod.GET, "/me", null, null)
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.detail").value("Tu sesión expiró. Inicia sesión de nuevo"))
+                .andExpect(jsonPath("$.instance").value("/api/v1/me"));
     }
 
     String refresh(String refreshToken) throws Exception {

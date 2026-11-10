@@ -4,11 +4,13 @@ import cl.textilcircular.api.core.repository.RefreshTokenRepository;
 import cl.textilcircular.api.core.web.Problems;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -68,10 +70,12 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth
                         .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(authentication))
-                        .authenticationEntryPoint((request, response, e) -> writeProblem(response,
-                                HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized", "UNAUTHORIZED",
-                                Problems.UNAUTHORIZED_DETAIL))
-                        .accessDeniedHandler((request, response, e) -> writeProblem(response,
+                        .authenticationEntryPoint((request, response, e) -> {
+                            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+                            writeProblem(request, response, HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized",
+                                    "UNAUTHORIZED", Problems.UNAUTHORIZED_DETAIL);
+                        })
+                        .accessDeniedHandler((request, response, e) -> writeProblem(request, response,
                                 HttpServletResponse.SC_FORBIDDEN, "Forbidden", "FORBIDDEN",
                                 Problems.FORBIDDEN_DETAIL)));
         return http.build();
@@ -106,14 +110,17 @@ public class SecurityConfig {
         return decoder;
     }
 
-    /** Fixed texts only, so the body is built by hand instead of going through a message converter. */
-    private static void writeProblem(HttpServletResponse response, int status, String title, String code,
-                                     String detail) throws IOException {
+    /**
+     * Same body as the controllers' errors, {@code instance} included. The texts are fixed, so it is
+     * built by hand instead of going through a message converter; only the request path needs escaping.
+     */
+    private static void writeProblem(HttpServletRequest request, HttpServletResponse response, int status,
+                                     String title, String code, String detail) throws IOException {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("""
-                {"type":"about:blank","title":"%s","status":%d,"code":"%s","detail":"%s"}"""
-                .formatted(title, status, code, detail));
+                {"type":"about:blank","title":"%s","status":%d,"detail":"%s","instance":"%s","code":"%s"}"""
+                .formatted(title, status, detail, request.getRequestURI().replace("\\", "\\\\").replace("\"", "\\\""), code));
     }
 }
