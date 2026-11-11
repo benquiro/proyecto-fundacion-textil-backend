@@ -1,0 +1,1534 @@
+openapi: 3.1.0
+info:
+  title: Fundación Textil Circular API
+  version: 1.0.0
+  description: |
+    Contrato entre la app Android y el backend. El backend lo implementa; la app ya lo consume
+    con Retrofit y lo verifica con fixtures de MockWebServer.
+
+    Estado de implementación
+    - Implementado en el backend: `auth`, `profile`, `lookups` y la moderación de usuarios de `admin`
+      (`/admin/users`).
+    - Pendiente: `contents`, `directory`, `my-business`, `my-products`, `reviews`, `messaging`, `media`,
+      `/admin/metrics` y el canal WebSocket. Su definición es el contrato acordado con la app.
+
+    Convenciones
+    - Ruta base `/api/v1`. Cuerpos JSON en camelCase. Los identificadores son enteros de 64 bits.
+    - Las fechas y horas son instantes ISO-8601 en UTC y siempre llevan zona (`2026-11-09T14:30:00Z`).
+      Una fecha sin zona (`2026-11-09T14:30:00`) no cumple el contrato.
+    - Las operaciones protegidas requieren `Authorization: Bearer <accessToken>`. La identidad, el rol
+      y la propiedad de los recursos de quien llama siempre salen del token, nunca del cuerpo de la petición.
+    - Los errores usan `application/problem+json` (RFC 9457) con dos extensiones: `code` (estable,
+      legible por máquina) y `errors` (el campo inválido; el backend informa el primero que encuentra).
+      `detail` y `errors[].message` son textos en español para el usuario, que la app muestra tal cual.
+    - Las listas que pueden crecer se paginan con `page` (desde 0) y `size` (20 por defecto, máximo 50).
+    - Las respuestas incluyen siempre todas las propiedades de su schema: una propiedad sin valor se envía
+      como `null`, nunca se omite. Los clientes deben ignorar las propiedades que no conozcan.
+    - Toda URL de imagen en peticiones y respuestas es absoluta (`http://` o `https://`). El backend nunca
+      devuelve rutas relativas como `/media/<archivo>`; la app usa la URL tal cual.
+    - Cuerpos de petición:
+      - `POST` (crear o ejecutar una acción): una propiedad opcional se puede enviar como `null` u omitir;
+        las dos formas significan "sin valor".
+      - `PUT` (reemplazar el recurso completo): toda propiedad del schema es obligatoria y debe estar
+        presente. Las opcionales aceptan `null`, que deja el campo vacío. Si falta una propiedad, responde
+        400 `VALIDATION` con ese campo en `errors` (con puntos si está anidado, por ejemplo
+        `business.photoUrl`), así un cliente desactualizado nunca borra datos sin querer.
+      - Un schema que se usa en un `PUT` exige todas sus propiedades también en el `POST` que lo comparte.
+      - La API no usa `PATCH`.
+servers:
+  - url: http://10.0.2.2:8080/api/v1
+    description: Backend local visto desde el emulador de Android
+security:
+  - bearerAuth: []
+tags:
+  - name: auth
+  - name: profile
+  - name: lookups
+  - name: contents
+  - name: directory
+  - name: my-business
+  - name: my-products
+  - name: reviews
+  - name: messaging
+  - name: media
+  - name: admin
+
+paths:
+  /auth/register/customer:
+    post:
+      tags: [auth]
+      operationId: registerCustomer
+      summary: Registrar un cliente
+      description: |
+        Crea una cuenta con rol CUSTOMER y devuelve una sesión iniciada, así que la app entra directo sin
+        pedir un login aparte. Requiere correo, contraseña y alias; el alias es el nombre que ven los
+        emprendedores cuando el cliente les escribe.
+        Responde 409 `EMAIL_TAKEN` si el correo ya tiene una cuenta.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterCustomerRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/register/entrepreneur:
+    post:
+      tags: [auth]
+      operationId: registerEntrepreneur
+      summary: Registrar un emprendedor
+      description: |
+        Crea en una sola transacción la cuenta ENTREPRENEUR, sus datos personales (RUT, nombre, apellidos,
+        rango etario y género) y su emprendimiento. Si algo falla, no se guarda nada.
+        El emprendimiento queda PENDING en la ronda 1 de revisión y no aparece en el directorio hasta que
+        lo aprueben. Devuelve una sesión iniciada.
+        Los errores del emprendimiento se informan como `business.<campo>` (por ejemplo `business.description`).
+        Responde 409 `EMAIL_TAKEN` o `RUT_TAKEN` si el correo o el RUT ya están registrados.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterEntrepreneurRequest' }
+      responses:
+        '201': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Iniciar sesión
+      description: |
+        Cambia correo y contraseña por una sesión: un token de acceso (JWT de corta duración, ver
+        `expiresIn`) y un token de refresco de un solo uso para renovarlo.
+        El correo no distingue mayúsculas de minúsculas. Si la cuenta estaba DEACTIVATED, iniciar sesión
+        la reactiva. Una cuenta SUSPENDED recibe 403 solo después de comprobar la contraseña, para no
+        revelar su estado a quien no la conoce.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '401':
+          description: Correo desconocido o contraseña incorrecta (`INVALID_CREDENTIALS`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example:
+                type: "about:blank"
+                title: Unauthorized
+                status: 401
+                code: INVALID_CREDENTIALS
+                detail: Correo o contraseña incorrectos
+        '403':
+          description: |
+            Las credenciales son correctas, pero la cuenta está SUSPENDED (`ACCOUNT_NOT_ACTIVE`, con
+            `accountStatus`). Una cuenta eliminada responde igual que una cuenta desconocida.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              example:
+                type: "about:blank"
+                title: Forbidden
+                status: 403
+                code: ACCOUNT_NOT_ACTIVE
+                accountStatus: SUSPENDED
+                detail: Tu cuenta está suspendida
+        '409': { $ref: '#/components/responses/ConcurrentChange' }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshSession
+      summary: Renovar la sesión
+      description: |
+        Entrega un token de acceso nuevo cuando el actual vence, sin pedir la contraseña otra vez.
+        Rota el token de refresco: el enviado se revoca y se devuelve un par nuevo, que la app debe guardar.
+        Reenviar un token ya rotado se trata como una filtración y termina todas las sesiones de la cuenta,
+        salvo que llegue dentro de los 10 segundos siguientes a su rotación (un reintento por timeout o dos
+        refrescos simultáneos): en ese caso se rechaza con 401, pero las demás sesiones se mantienen.
+        Un 401 significa que la sesión terminó y la app cierra la sesión del usuario.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Session' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/ConcurrentChange' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Cerrar sesión
+      description: |
+        Termina la sesión del token de refresco enviado: ese token se revoca y su token de acceso deja de
+        ser válido de inmediato. Las sesiones de la cuenta en otros dispositivos siguen abiertas.
+        Siempre responde 204, incluso con un token desconocido o ya revocado, para que la app pueda cerrar
+        sesión sin depender de la respuesta.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '204': { description: "Sesión cerrada" }
+
+  /me:
+    get:
+      tags: [profile]
+      operationId: getProfile
+      summary: Ver mi perfil
+      description: |
+        Devuelve los datos de la cuenta de quien llama: correo, rol, alias y estado. Para los emprendedores
+        incluye además `entrepreneur`, con RUT, nombre, apellidos, rango etario y género.
+      responses:
+        '200':
+          description: El perfil de quien llama
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccountNotActive' }
+    put:
+      tags: [profile]
+      operationId: updateProfile
+      summary: Reemplazar mi perfil
+      description: |
+        Reemplaza los datos personales de quien llama y devuelve el perfil actualizado. Las seis propiedades
+        deben estar presentes; las que no tienen valor se envían como `null`.
+        - `email` es obligatorio. Si se cambia por uno que usa otra cuenta, responde 409 `EMAIL_TAKEN`.
+        - `alias` es obligatorio para clientes. Para emprendedores, `null` lo borra.
+        - `firstName`, `lastName`, `ageRangeId` y `genderId` son obligatorios (no `null`) para emprendedores,
+          y deben ser `null` para los demás roles; si no, responde 400 `VALIDATION`.
+        - El RUT no se puede cambiar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/AccountNotActive' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [profile]
+      operationId: deleteAccount
+      summary: Eliminar mi cuenta
+      description: |
+        Elimina la cuenta de quien llama. Es un borrado lógico con anonimización: se quitan el correo, el
+        alias y la contraseña y, para emprendedores, el RUT, el nombre y los apellidos; el rango etario y
+        el género se conservan solo para métricas agregadas. El correo queda libre para un nuevo registro,
+        el emprendimiento sale del directorio y se cierran todas las sesiones.
+        Solo una cuenta ACTIVE puede eliminarse a sí misma, para que una suspensión no se pueda evitar
+        eliminando la cuenta y registrándose de nuevo. La app aún no la usa.
+      responses:
+        '204': { description: "Cuenta eliminada" }
+        '403': { $ref: '#/components/responses/AccountNotActive' }
+  /me/password:
+    put:
+      tags: [profile]
+      operationId: changePassword
+      summary: Cambiar mi contraseña
+      description: |
+        Pide la contraseña actual y la nueva. La nueva sigue las reglas del registro y debe ser distinta de
+        la actual. Una contraseña actual incorrecta es un error de `VALIDATION` en el campo `currentPassword`.
+        Conserva la sesión desde la que se hace el cambio y cierra todas las demás, por si la contraseña
+        anterior estaba comprometida.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204': { description: "Contraseña cambiada" }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/AccountNotActive' }
+  /me/deactivation:
+    post:
+      tags: [profile]
+      operationId: deactivateAccount
+      summary: Desactivar mi cuenta
+      description: |
+        Pausa la cuenta de quien llama sin borrar datos: deja de aparecer en la plataforma (su
+        emprendimiento sale del directorio) y se cierran todas sus sesiones. Volver a iniciar sesión la
+        reactiva. La app aún no la usa.
+      responses:
+        '204': { description: "Cuenta desactivada" }
+        '403': { $ref: '#/components/responses/AccountNotActive' }
+
+  /regions:
+    get:
+      tags: [lookups]
+      operationId: listRegions
+      summary: Listar regiones
+      description: |
+        Lista pública de las regiones, en el orden en que la app las muestra. La app la guarda en caché
+        para los selectores de ubicación y los filtros del directorio.
+      security: []
+      responses:
+        '200':
+          description: Regiones en el orden en que se muestran
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Region' } }
+  /communes:
+    get:
+      tags: [lookups]
+      operationId: listCommunes
+      summary: Listar comunas
+      description: |
+        Lista pública de comunas, ordenadas por nombre. Sin `regionId` devuelve todas, para que la app
+        guarde la lista completa en caché con una sola llamada; con `regionId` devuelve solo las de esa región.
+      security: []
+      parameters:
+        - { name: regionId, in: query, description: "Solo las comunas de esta región.", schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Comunas ordenadas por nombre
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Commune' } }
+  /services:
+    get:
+      tags: [lookups]
+      operationId: listServices
+      summary: Listar servicios textiles
+      description: |
+        Lista pública de los servicios textiles activos, ordenados por nombre. Se usan al registrar un
+        emprendimiento, al clasificar productos y como filtro del directorio. Los servicios retirados no
+        aparecen.
+      security: []
+      responses:
+        '200':
+          description: Servicios ordenados por nombre
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Service' } }
+  /age-ranges:
+    get:
+      tags: [lookups]
+      operationId: listAgeRanges
+      summary: Listar rangos etarios
+      description: |
+        Lista pública de rangos etarios, en el orden en que la app los muestra. Se piden en el registro de
+        emprendedores y alimentan las métricas por rango etario.
+      security: []
+      responses:
+        '200':
+          description: Rangos etarios en el orden en que se muestran
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Described' } }
+  /genders:
+    get:
+      tags: [lookups]
+      operationId: listGenders
+      summary: Listar géneros
+      description: Lista pública de géneros, ordenados por id. Se piden en el registro de emprendedores.
+      security: []
+      responses:
+        '200':
+          description: Géneros ordenados por id
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Described' } }
+
+  /contents:
+    get:
+      tags: [contents]
+      operationId: listContents
+      summary: Listar contenidos de difusión
+      description: |
+        Lista pública y paginada del contenido que publica la fundación (textos, imágenes, artículos y
+        eventos), del más reciente al más antiguo. No incluye el contenido eliminado.
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Una página de contenidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentPage' }
+    post:
+      tags: [contents, admin]
+      operationId: publishContent
+      summary: Publicar un contenido
+      description: |
+        Publica un contenido de difusión de la fundación, que pasa a verse en la sección pública de la app.
+        Solo administradores; cualquier otro rol recibe 403.
+        Los campos obligatorios dependen de `type`: TEXT requiere `body`; IMAGE, `imageUrl`; ARTICLE,
+        `title` y `body`; EVENT, `title` y `eventAt` (`eventLocation` es opcional). La imagen se sube antes
+        con `POST /media`. Devuelve el contenido creado. La app aún no la usa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContentRequest' }
+      responses:
+        '201':
+          description: Publicado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Content' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /contents/{contentId}:
+    parameters:
+      - { name: contentId, in: path, required: true, schema: { type: integer, format: int64 } }
+    get:
+      tags: [contents]
+      operationId: getContent
+      summary: Ver un contenido
+      description: Detalle público de un contenido. Responde 404 si no existe o fue eliminado.
+      security: []
+      responses:
+        '200':
+          description: Un contenido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Content' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [contents, admin]
+      operationId: updateContent
+      summary: Editar un contenido
+      description: |
+        Reemplaza todos los campos de un contenido por los enviados, con las mismas reglas por `type` que
+        al publicarlo. Solo administradores. Responde 409 `CONTENT_DELETED` si el contenido fue eliminado.
+        La app aún no la usa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContentRequest' }
+      responses:
+        '200':
+          description: Actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Content' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [contents, admin]
+      operationId: deleteContent
+      summary: Eliminar un contenido
+      description: |
+        Borrado lógico: el contenido deja de aparecer en la lista y en el detalle públicos, pero se conserva
+        en la base de datos. Solo administradores. La app aún no la usa.
+      responses:
+        '204': { description: "Eliminado" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /businesses:
+    get:
+      tags: [directory]
+      operationId: listBusinesses
+      summary: Buscar emprendimientos (directorio)
+      description: |
+        Directorio público y paginado de emprendimientos, con filtros opcionales por región, comuna y
+        servicio. Solo muestra emprendimientos APPROVED, no eliminados, no ocultos por su dueño y cuyo dueño
+        tiene la cuenta ACTIVE. Nunca expone RUT ni correo.
+        El orden es pseudoaleatorio pero estable para un mismo `seed`: la app genera un `seed` al abrir el
+        directorio y lo repite al pedir las páginas siguientes, así que paginar no repite ni salta filas.
+        Cada llamada se registra como un evento de analítica DIRECTORY_SEARCH para las métricas.
+      security: []
+      parameters:
+        - { name: regionId, in: query, schema: { type: integer, format: int64 } }
+        - { name: communeId, in: query, schema: { type: integer, format: int64 } }
+        - { name: serviceId, in: query, schema: { type: integer, format: int64 } }
+        - { name: q, in: query, description: "Búsqueda de texto en nombre y descripción. La app aún no lo usa.", schema: { type: string } }
+        - { name: seed, in: query, required: true, description: "Semilla del orden; la misma en todas las páginas de una búsqueda.", schema: { type: integer, format: int32, minimum: 1 } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Una página de tarjetas de emprendimientos; `totalElements` es la cantidad de resultados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BusinessCardPage' }
+  /businesses/{businessId}:
+    parameters:
+      - { $ref: '#/components/parameters/businessId' }
+    get:
+      tags: [directory]
+      operationId: getBusiness
+      summary: Ver un emprendimiento
+      description: |
+        Ficha pública de un emprendimiento: datos, ubicación, servicios en el orden elegido por su dueño y
+        sus productos ACTIVE. La sesión es opcional.
+        Si el emprendimiento no es público (pendiente, rechazado u oculto), solo su dueño lo obtiene, con
+        `ownedByCaller` en true; cualquier otra persona recibe 404.
+        Cada consulta se registra como un evento BUSINESS_VIEW para las métricas.
+      security: [{}, { bearerAuth: [] }]
+      responses:
+        '200':
+          description: Detalle del emprendimiento
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BusinessDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /businesses/{businessId}/contact-clicks:
+    parameters:
+      - { $ref: '#/components/parameters/businessId' }
+    post:
+      tags: [directory]
+      operationId: recordContactClick
+      summary: Registrar un clic de contacto
+      description: |
+        La app lo llama cuando alguien toca el botón de contacto de un emprendimiento, o de uno de sus
+        productos (con `productId`). Registra un evento CONTACT_CLICK para las métricas. La sesión es
+        opcional. Para la app es de mejor esfuerzo: si falla, no se le muestra un error al usuario.
+      security: [{}, { bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productId: { type: integer, format: int64 }
+      responses:
+        '204': { description: "Registrado" }
+  /products/{productId}:
+    parameters:
+      - { $ref: '#/components/parameters/productId' }
+    get:
+      tags: [directory]
+      operationId: getProduct
+      summary: Ver un producto
+      description: |
+        Detalle de un producto junto con la tarjeta de su emprendimiento. La sesión es opcional.
+        Es público solo cuando el producto está ACTIVE y su emprendimiento es público; el dueño siempre lo
+        ve (`ownedByCaller` en true) y cualquier otra persona recibe 404.
+        Cada consulta se registra como un evento PRODUCT_VIEW para las métricas.
+      security: [{}, { bearerAuth: [] }]
+      responses:
+        '200':
+          description: Detalle del producto con la cabecera de su emprendimiento
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /me/business:
+    get:
+      tags: [my-business]
+      operationId: getMyBusiness
+      summary: Ver mi emprendimiento
+      description: |
+        Solo emprendedores; otros roles reciben 403. Devuelve la ficha del emprendimiento de quien llama con
+        su estado de revisión, la ronda actual, todos los votos recibidos (con el motivo y el comentario de
+        los rechazos) y los contadores de su panel: productos totales, activos y ocultos, y cuántos
+        emprendimientos tiene pendientes de revisar.
+      responses:
+        '200':
+          description: La ficha del emprendimiento de quien llama
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyBusiness' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [my-business]
+      operationId: updateMyBusiness
+      summary: Editar mi emprendimiento
+      description: |
+        Reemplaza nombre, descripción, foto, comuna y servicios del emprendimiento de quien llama, con las
+        mismas reglas que en el registro.
+        Si cambia algo que los revisores evaluaron, el emprendimiento vuelve a PENDING en una nueva ronda
+        de revisión, cualquiera sea su estado, y sale del directorio hasta que lo aprueben de nuevo; así
+        un voto antiguo nunca aprueba contenido nuevo. Un emprendimiento REJECTED se reenvía a revisión de
+        esta forma. Guardar los mismos valores no cambia nada.
+        Todas las propiedades deben estar presentes; `photoUrl: null` deja el emprendimiento sin foto.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BusinessDraft' }
+      responses:
+        '200':
+          description: Ficha actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyBusiness' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+  /me/business/visibility:
+    put:
+      tags: [my-business]
+      operationId: setMyBusinessVisibility
+      summary: Ocultar o mostrar mi emprendimiento
+      description: |
+        Con `hidden` en true el emprendimiento sale del directorio sin perder su estado de revisión; con
+        false vuelve a aparecer si está APPROVED. Devuelve la ficha actualizada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisibilityRequest' }
+      responses:
+        '200':
+          description: Ficha actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyBusiness' }
+
+  /me/products:
+    get:
+      tags: [my-products]
+      operationId: listMyProducts
+      summary: Listar mis productos
+      description: |
+        Productos no eliminados del emprendimiento de quien llama, del más reciente al más antiguo.
+        `status` filtra por ACTIVE u HIDDEN; sin él devuelve ambos.
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ProductStatus' } }
+      responses:
+        '200':
+          description: Productos
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Product' } }
+    post:
+      tags: [my-products]
+      operationId: createProduct
+      summary: Publicar un producto
+      description: |
+        Crea un producto en el emprendimiento de quien llama. Requiere título, descripción y de 1 a 5 fotos,
+        subidas antes con `POST /media`; la primera es la foto principal. El precio es opcional y se expresa
+        en CLP. `serviceId`, si se envía, debe ser uno de los servicios del emprendimiento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductRequest' }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+  /me/products/{productId}:
+    parameters:
+      - { $ref: '#/components/parameters/productId' }
+    get:
+      tags: [my-products]
+      operationId: getMyProduct
+      summary: Ver mi producto
+      description: |
+        Un producto del emprendimiento de quien llama, esté ACTIVE u HIDDEN. Responde 404 si no existe, fue
+        eliminado o pertenece a otro emprendimiento.
+      responses:
+        '200':
+          description: Un producto de quien llama
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [my-products]
+      operationId: updateProduct
+      summary: Editar mi producto
+      description: |
+        Reemplaza todos los campos del producto, con las mismas reglas que al crearlo. Las fotos se
+        reemplazan por la lista enviada; la primera pasa a ser la foto principal.
+        Todas las propiedades deben estar presentes; `null` borra un campo opcional (por ejemplo, el precio o la talla).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductRequest' }
+      responses:
+        '200':
+          description: Actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [my-products]
+      operationId: deleteProduct
+      summary: Eliminar mi producto
+      description: |
+        Borrado lógico: el producto desaparece del panel del dueño y de la ficha pública, pero se conserva
+        en la base de datos.
+      responses:
+        '204': { description: "Eliminado" }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /me/products/{productId}/visibility:
+    parameters:
+      - { $ref: '#/components/parameters/productId' }
+    put:
+      tags: [my-products]
+      operationId: setProductVisibility
+      summary: Ocultar o mostrar mi producto
+      description: |
+        Con `hidden` en true el producto pasa a HIDDEN y deja de verse públicamente; con false vuelve a
+        ACTIVE. Devuelve el producto actualizado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisibilityRequest' }
+      responses:
+        '200':
+          description: Actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+
+  /reviews/pending:
+    get:
+      tags: [reviews]
+      operationId: listPendingReviews
+      summary: Ver la cola de revisión
+      description: |
+        Emprendimientos PENDING que quien llama puede votar, del envío más antiguo al más reciente, con las
+        aprobaciones que ya llevan en la ronda actual y las que necesitan.
+        Revisan los administradores ACTIVE y los emprendedores dueños de un emprendimiento APPROVED; la
+        cola excluye el emprendimiento propio y los ya votados en la ronda actual. Cualquier otra persona
+        recibe una lista vacía.
+      responses:
+        '200':
+          description: Cola de revisión, del envío más antiguo al más reciente
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PendingReview' } }
+  /businesses/{businessId}/reviews:
+    parameters:
+      - { $ref: '#/components/parameters/businessId' }
+    post:
+      tags: [reviews]
+      operationId: reviewBusiness
+      summary: Votar la revisión de un emprendimiento
+      description: |
+        Registra el voto de quien llama sobre un emprendimiento PENDING, en su ronda actual. Hay un voto
+        por revisor y ronda.
+        Un rechazo requiere `rejectionReason` y `comment`, y basta uno para dejar el emprendimiento
+        REJECTED. Al juntar `requiredApprovals` aprobaciones queda APPROVED y entra al directorio.
+        Devuelve el estado resultante del emprendimiento.
+        Responde 403 si quien llama no puede revisar o es el dueño, 409 `ALREADY_VOTED` si ya votó en esta
+        ronda y 409 `NOT_PENDING_REVIEW` si el emprendimiento ya no está pendiente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200':
+          description: Voto registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [businessStatus]
+                properties:
+                  businessStatus: { $ref: '#/components/schemas/BusinessStatus' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /conversations:
+    get:
+      tags: [messaging]
+      operationId: listConversations
+      summary: Ver mi bandeja de mensajes
+      description: |
+        Conversaciones de quien llama, con la del mensaje más reciente primero. Cada una trae el último
+        mensaje y la cantidad de mensajes sin leer. Para un cliente el contacto es el emprendimiento; para
+        el dueño, el alias del cliente.
+      responses:
+        '200':
+          description: Conversaciones
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Conversation' } }
+    post:
+      tags: [messaging]
+      operationId: openConversation
+      summary: Abrir una conversación
+      description: |
+        Abre el chat entre quien llama y un emprendimiento: devuelve la conversación existente o la crea si
+        no existe, así que llamarlo varias veces no duplica conversaciones.
+        Solo los clientes ACTIVE inician conversaciones, solo con un emprendimiento público y nunca con el
+        propio; en los demás casos responde 403, y 404 si el emprendimiento no existe o no es público.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [businessId]
+              properties:
+                businessId: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: La conversación
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Conversation' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /conversations/{conversationId}/messages:
+    parameters:
+      - { $ref: '#/components/parameters/conversationId' }
+    get:
+      tags: [messaging]
+      operationId: listMessages
+      summary: Listar mensajes
+      description: |
+        Mensajes de una conversación, del más antiguo al más reciente. Con `afterId` devuelve solo los
+        posteriores a ese mensaje; la app lo usa para ponerse al día después de reconectarse.
+        Solo participantes; para cualquier otra persona la conversación no existe (404).
+      parameters:
+        - { name: afterId, in: query, description: "Id del último mensaje que la app ya tiene.", schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Mensajes
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Message' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [messaging]
+      operationId: sendMessage
+      summary: Enviar un mensaje
+      description: |
+        Guarda un mensaje de quien llama en la conversación y lo envía en tiempo real al otro participante
+        por el WebSocket (`message.created`).
+        La app genera `clientUuid` antes de enviar, lo que hace la operación idempotente: si repite la
+        petición (por ejemplo, tras un timeout), recibe el mensaje ya guardado con 200 en vez de duplicarlo.
+        El mismo uuid enviado por otro remitente es 409 `MESSAGE_ID_CONFLICT`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SendMessageRequest' }
+      responses:
+        '200':
+          description: Ya estaba guardado (reintento)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '201':
+          description: Guardado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '403':
+          description: Quien llama no participa, o la conversación está bloqueada (`CONVERSATION_BLOCKED`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /conversations/{conversationId}/read:
+    parameters:
+      - { $ref: '#/components/parameters/conversationId' }
+    post:
+      tags: [messaging]
+      operationId: markConversationRead
+      summary: Marcar una conversación como leída
+      description: |
+        Marca como leídos los mensajes que la contraparte envió a quien llama y le avisa al remitente por
+        el WebSocket (`message.read`). Solo participantes.
+      responses:
+        '204': { description: "Marcados" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /conversations/{conversationId}/block:
+    parameters:
+      - { $ref: '#/components/parameters/conversationId' }
+    put:
+      tags: [messaging]
+      operationId: blockConversation
+      summary: Bloquear una conversación
+      description: |
+        Bloquea la conversación: mientras siga bloqueada, ningún participante puede enviar mensajes en ella
+        (403 `CONVERSATION_BLOCKED`). Los mensajes anteriores se siguen viendo. Solo participantes.
+      responses:
+        '204': { description: "Bloqueada" }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [messaging]
+      operationId: unblockConversation
+      summary: Desbloquear una conversación
+      description: Levanta el bloqueo puesto con `PUT`; los participantes pueden volver a escribir.
+      responses:
+        '204': { description: "Desbloqueada" }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /conversations/{conversationId}/reports:
+    parameters:
+      - { $ref: '#/components/parameters/conversationId' }
+    post:
+      tags: [messaging]
+      operationId: reportConversation
+      summary: Reportar una conversación
+      description: |
+        Denuncia una conversación, o un mensaje puntual con `messageId`, por spam, acoso, estafa u otro
+        motivo, para que la fundación la revise. Solo puede haber un reporte OPEN por conversación y
+        denunciante; uno nuevo mientras el anterior sigue abierto responde 409 `REPORT_ALREADY_OPEN`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReportRequest' }
+      responses:
+        '201': { description: "Reportada" }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /media:
+    post:
+      tags: [media]
+      operationId: uploadImage
+      summary: Subir una imagen
+      description: |
+        Sube una imagen JPG, PNG o WEBP de hasta 5 MB y devuelve su URL. Esa URL es la que después se envía
+        en `photoUrl` (emprendimiento), `photoUrls` (productos) o `imageUrl` (contenidos). Requiere sesión.
+        La `url` devuelta siempre es absoluta.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Guardada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string, format: uri }
+        '400': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/metrics:
+    get:
+      tags: [admin]
+      operationId: getMetrics
+      summary: Ver métricas
+      description: |
+        Panel de métricas para administradores, calculado con los datos reales y los eventos de analítica:
+        emprendedores activos y nuevos, búsquedas, visitas de perfil, conversaciones (totales y efectivas) y
+        registros, más desgloses por región, servicio y rango etario y los 5 emprendimientos más visitados.
+        `days` limita la ventana a los últimos 30 o 90 días, y cada KPI trae también el valor de la ventana
+        anterior para comparar. `regionId` y `serviceId` filtran los resultados.
+      parameters:
+        - { name: days, in: query, description: "Ventana en días (30 o 90). Omítelo para todo el período.", schema: { type: integer, enum: [30, 90] } }
+        - { name: regionId, in: query, schema: { type: integer, format: int64 } }
+        - { name: serviceId, in: query, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: Resumen de métricas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Metrics' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: listUsers
+      summary: Listar usuarios
+      description: |
+        Lista paginada de todas las cuentas, de cualquier rol y estado, ordenadas por id, para moderarlas.
+        Solo administradores. Un `page` negativo se trata como 0 y `size` se ajusta al rango de 1 a 50, sin
+        error. La app aún no la usa.
+      parameters:
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: Una página de cuentas
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PageInfo'
+                  - type: object
+                    required: [content]
+                    properties:
+                      content: { type: array, items: { $ref: '#/components/schemas/SessionUser' } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/users/{userId}/suspension:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: integer, format: int64 } }
+    put:
+      tags: [admin]
+      operationId: suspendUser
+      summary: Suspender un usuario
+      description: |
+        Bloquea una cuenta por moderación: se cierran todas sus sesiones y no puede volver a iniciar sesión
+        hasta que un administrador la reactive. Aplica a cuentas ACTIVE y DEACTIVATED, para que nadie evite
+        una suspensión desactivando su cuenta. Solo administradores, y nunca sobre su propia cuenta.
+        La app aún no la usa.
+      responses:
+        '204': { description: "Suspendida" }
+        '403':
+          description: Quien llama no es administrador, o la cuenta objetivo es la suya (`FORBIDDEN`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La cuenta no está ACTIVE ni DEACTIVATED (`INVALID_ACCOUNT_STATUS`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    delete:
+      tags: [admin]
+      operationId: reactivateUser
+      summary: Reactivar un usuario
+      description: |
+        Devuelve a ACTIVE una cuenta SUSPENDED o DEACTIVATED, para que pueda volver a iniciar sesión.
+        Solo administradores, y nunca sobre su propia cuenta. La app aún no la usa.
+      responses:
+        '204': { description: "Reactivada" }
+        '403':
+          description: Quien llama no es administrador, o la cuenta objetivo es la suya (`FORBIDDEN`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La cuenta no está SUSPENDED ni DEACTIVATED (`INVALID_ACCOUNT_STATUS`).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    page: { name: page, in: query, description: "Número de página, desde 0.", schema: { type: integer, minimum: 0, default: 0 } }
+    size: { name: size, in: query, description: "Tamaño de página.", schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    businessId: { name: businessId, in: path, required: true, schema: { type: integer, format: int64 } }
+    productId: { name: productId, in: path, required: true, schema: { type: integer, format: int64 } }
+    conversationId: { name: conversationId, in: path, required: true, schema: { type: integer, format: int64 } }
+  responses:
+    Session:
+      description: Los tokens más el usuario que inició sesión
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Session' }
+          example:
+            accessToken: eyJhbGciOiJIUzI1NiJ9.access
+            refreshToken: 3f1c2a7e-refresh
+            expiresIn: 900
+            user: { id: 8, email: clienta@demo.cl, role: CUSTOMER, alias: Cami, status: ACTIVE }
+    ValidationFailed:
+      description: Uno o más campos son inválidos (`VALIDATION`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: "about:blank"
+            title: Bad Request
+            status: 400
+            code: VALIDATION
+            detail: Revisa los datos ingresados
+            errors:
+              - { field: email, message: Ingresa un correo válido }
+    Unauthorized:
+      description: |
+        Token ausente, vencido o revocado, o su sesión terminó (cierre de sesión, rotación, cambio de
+        contraseña, suspensión, desactivación o eliminación de la cuenta) (`UNAUTHORIZED`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Unauthorized, status: 401, code: UNAUTHORIZED, detail: Tu sesión expiró. Inicia sesión de nuevo }
+    Forbidden:
+      description: Quien llama no tiene permiso para hacer esto (`FORBIDDEN`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Forbidden, status: 403, code: FORBIDDEN, detail: No tienes permiso para hacer esto }
+    AccountNotActive:
+      description: |
+        La cuenta ya no está ACTIVE (`ACCOUNT_NOT_ACTIVE`, con `accountStatus`). Normalmente su token ya
+        habría recibido 401, porque la suspensión y la desactivación terminan todas las sesiones.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Forbidden, status: 403, code: ACCOUNT_NOT_ACTIVE, accountStatus: DEACTIVATED, detail: Tu cuenta está desactivada }
+    NotFound:
+      description: El recurso no existe o quien llama no puede verlo (`NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Not Found, status: 404, code: NOT_FOUND, detail: No encontramos lo que buscas }
+    Conflict:
+      description: |
+        La petición choca con el estado actual. Códigos: `EMAIL_TAKEN`, `RUT_TAKEN`, `ALREADY_VOTED`,
+        `NOT_PENDING_REVIEW`, `MESSAGE_ID_CONFLICT`, `BUSINESS_DELETED`, `PRODUCT_DELETED`,
+        `CONTENT_DELETED`, `INVALID_ACCOUNT_STATUS`, `REPORT_ALREADY_OPEN`. `CONFLICT` es el código genérico
+        de un cambio concurrente (choque de una clave única o de versión) y la petición se puede reintentar.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Conflict, status: 409, code: EMAIL_TAKEN, detail: Ese correo ya tiene una cuenta }
+    ConcurrentChange:
+      description: |
+        Un cambio simultáneo de la cuenta (por ejemplo, una suspensión o un cambio de contraseña) chocó con
+        el inicio de la sesión (`CONFLICT`). La petición se puede reintentar.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example: { type: "about:blank", title: Conflict, status: 409, code: CONFLICT, detail: Los datos cambiaron mientras guardabas. Inténtalo de nuevo }
+
+  schemas:
+    Problem:
+      type: object
+      required: [status, code, detail]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          description: |
+            Código estable. Además de los indicados en cada operación: `VALIDATION`, `MALFORMED_REQUEST`
+            (JSON ilegible o con un tipo incorrecto), `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
+            `METHOD_NOT_ALLOWED`, `CONFLICT`, `UNSUPPORTED_MEDIA_TYPE`, `INTERNAL_ERROR` y `ERROR` (cualquier
+            otro estado sin código propio).
+        detail: { type: string }
+        instance: { type: string, description: "Ruta de la petición." }
+        accountStatus: { $ref: '#/components/schemas/AccountStatus' }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string, description: "Nombre de la propiedad de la petición, por ejemplo `email` o `business.name`. En listas se informa el nombre sin índice (`photoUrls`, `serviceIds`), nunca `photoUrls[0]`." }
+              message: { type: string }
+
+    Role: { type: string, enum: [CUSTOMER, ENTREPRENEUR, ADMINISTRATOR] }
+    AccountStatus: { type: string, enum: [ACTIVE, DEACTIVATED, SUSPENDED, DELETED] }
+    BusinessStatus: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+    ProductStatus: { type: string, enum: [ACTIVE, HIDDEN] }
+    ReviewDecision: { type: string, enum: [APPROVED, REJECTED] }
+    RejectionReason: { type: string, enum: [INCOMPLETE_DATA, UNCLEAR_DESCRIPTION, INAPPROPRIATE_IMAGES, NOT_CIRCULAR, OTHER] }
+    ContentType: { type: string, enum: [TEXT, IMAGE, ARTICLE, EVENT] }
+    ProductSize: { type: string, enum: [XS, S, M, L, XL, ONE_SIZE] }
+    ProductCondition: { type: string, enum: [NEW, GOOD, WITH_DETAILS] }
+    OfferingType: { type: string, enum: [MADE_TO_ORDER, REPAIR] }
+    ReportReason: { type: string, enum: [SPAM, HARASSMENT, SCAM, OTHER] }
+
+    SessionUser:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        alias: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/AccountStatus' }
+    Session:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, description: "Segundos hasta que vence el token de acceso." }
+        user: { $ref: '#/components/schemas/SessionUser' }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    RegisterCustomerRequest:
+      type: object
+      required: [email, password, alias]
+      properties:
+        email: { type: string, maxLength: 254 }
+        password: { type: string, minLength: 8, description: "Al menos una letra y un dígito; como máximo 72 bytes." }
+        alias: { type: string, maxLength: 40 }
+    RegisterEntrepreneurRequest:
+      type: object
+      required: [email, password, rut, firstName, lastName, ageRangeId, genderId, business]
+      properties:
+        email: { type: string, maxLength: 254 }
+        password: { type: string, minLength: 8, description: "Mismas reglas que para los clientes (como máximo 72 bytes)." }
+        alias: { type: [string, 'null'], maxLength: 40 }
+        rut: { type: string, description: 'Cualquier formato habitual; se guarda como `12345678-5`.' }
+        firstName: { type: string, maxLength: 60 }
+        lastName: { type: string, maxLength: 60 }
+        ageRangeId: { type: integer, format: int64 }
+        genderId: { type: integer, format: int64 }
+        business: { $ref: '#/components/schemas/BusinessDraft' }
+    Profile:
+      allOf:
+        - $ref: '#/components/schemas/SessionUser'
+        - type: object
+          properties:
+            entrepreneur:
+              type: [object, 'null']
+              description: Presente solo para emprendedores.
+              required: [rut, firstName, lastName, ageRangeId, genderId]
+              properties:
+                rut: { type: string }
+                firstName: { type: string }
+                lastName: { type: string }
+                ageRangeId: { type: integer, format: int64 }
+                genderId: { type: integer, format: int64 }
+    UpdateProfileRequest:
+      type: object
+      required: [email, alias, firstName, lastName, ageRangeId, genderId]
+      properties:
+        email: { type: string, maxLength: 254 }
+        alias: { type: [string, 'null'], maxLength: 40 }
+        firstName: { type: [string, 'null'], maxLength: 60, description: "Obligatorio para emprendedores." }
+        lastName: { type: [string, 'null'], maxLength: 60, description: "Obligatorio para emprendedores." }
+        ageRangeId: { type: [integer, 'null'], format: int64 }
+        genderId: { type: [integer, 'null'], format: int64 }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 8, description: "Mismas reglas que en el registro (como máximo 72 bytes); debe ser distinta de la actual." }
+
+    Region:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+    Commune:
+      type: object
+      required: [id, regionId, name]
+      properties:
+        id: { type: integer, format: int64 }
+        regionId: { type: integer, format: int64 }
+        name: { type: string }
+    Service:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+    Described:
+      type: object
+      required: [id, description]
+      properties:
+        id: { type: integer, format: int64 }
+        description: { type: string }
+
+    PageInfo:
+      type: object
+      required: [page, size, totalElements, last]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        last: { type: boolean }
+
+    Content:
+      type: object
+      required: [id, type, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        type: { $ref: '#/components/schemas/ContentType' }
+        title: { type: [string, 'null'] }
+        body: { type: [string, 'null'] }
+        imageUrl: { type: [string, 'null'] }
+        eventAt: { type: [string, 'null'], format: date-time }
+        eventLocation: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    ContentRequest:
+      type: object
+      required: [type, title, body, imageUrl, eventAt, eventLocation]
+      description: TEXT requiere body; IMAGE requiere imageUrl; ARTICLE requiere title y body; EVENT requiere title y eventAt.
+      properties:
+        type: { $ref: '#/components/schemas/ContentType' }
+        title: { type: [string, 'null'], maxLength: 150 }
+        body: { type: [string, 'null'] }
+        imageUrl: { type: [string, 'null'], maxLength: 500 }
+        eventAt: { type: [string, 'null'], format: date-time }
+        eventLocation: { type: [string, 'null'], maxLength: 200 }
+    ContentPage:
+      allOf:
+        - $ref: '#/components/schemas/PageInfo'
+        - type: object
+          required: [content]
+          properties:
+            content: { type: array, items: { $ref: '#/components/schemas/Content' } }
+
+    BusinessCard:
+      type: object
+      required: [id, name, description, communeId, communeName, regionId, regionName]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: string }
+        photoUrl: { type: [string, 'null'] }
+        communeId: { type: integer, format: int64 }
+        communeName: { type: string }
+        regionId: { type: integer, format: int64 }
+        regionName: { type: string }
+    BusinessCardPage:
+      allOf:
+        - $ref: '#/components/schemas/PageInfo'
+        - type: object
+          required: [content]
+          properties:
+            content: { type: array, items: { $ref: '#/components/schemas/BusinessCard' } }
+    BusinessDetail:
+      allOf:
+        - $ref: '#/components/schemas/BusinessCard'
+        - type: object
+          required: [status, ownedByCaller, services, products]
+          properties:
+            status: { $ref: '#/components/schemas/BusinessStatus' }
+            ownedByCaller: { type: boolean }
+            services: { type: array, items: { $ref: '#/components/schemas/Service' } }
+            products: { type: array, items: { $ref: '#/components/schemas/Product' } }
+    BusinessDraft:
+      type: object
+      required: [name, description, photoUrl, communeId, serviceIds]
+      properties:
+        name: { type: string, maxLength: 100 }
+        description: { type: string, minLength: 50, maxLength: 500 }
+        photoUrl: { type: [string, 'null'], maxLength: 500, description: "URL absoluta `http(s)://`, normalmente la devuelta por `POST /media`." }
+        communeId: { type: integer, format: int64 }
+        serviceIds:
+          type: array
+          description: Uno o dos servicios distintos, en el orden elegido.
+          minItems: 1
+          maxItems: 2
+          items: { type: integer, format: int64 }
+    VisibilityRequest:
+      type: object
+      required: [hidden]
+      properties:
+        hidden: { type: boolean }
+    BusinessReview:
+      type: object
+      required: [id, round, decision, reviewedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        round: { type: integer }
+        decision: { $ref: '#/components/schemas/ReviewDecision' }
+        rejectionReason: { oneOf: [{ $ref: '#/components/schemas/RejectionReason' }, { type: 'null' }] }
+        comment: { type: [string, 'null'] }
+        reviewedAt: { type: string, format: date-time }
+    MyBusiness:
+      allOf:
+        - $ref: '#/components/schemas/BusinessCard'
+        - type: object
+          required: [status, reviewRound, hidden, services, reviews, counts]
+          properties:
+            status: { $ref: '#/components/schemas/BusinessStatus' }
+            reviewRound: { type: integer }
+            hidden: { type: boolean }
+            approvedAt: { type: [string, 'null'], format: date-time }
+            services: { type: array, items: { $ref: '#/components/schemas/Service' } }
+            reviews:
+              type: array
+              description: Todos los votos recibidos, del más reciente al más antiguo.
+              items: { $ref: '#/components/schemas/BusinessReview' }
+            counts:
+              type: object
+              required: [productsTotal, productsActive, productsHidden, pendingReviews]
+              properties:
+                productsTotal: { type: integer }
+                productsActive: { type: integer }
+                productsHidden: { type: integer }
+                pendingReviews: { type: integer, description: "Tamaño de la cola de revisión de quien llama." }
+
+    Product:
+      type: object
+      required: [id, businessId, title, description, status, photoUrls]
+      properties:
+        id: { type: integer, format: int64 }
+        businessId: { type: integer, format: int64 }
+        title: { type: string }
+        description: { type: string }
+        price: { type: [integer, 'null'], format: int64, description: "Precio de referencia en CLP." }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        photoUrls: { type: array, items: { type: string }, description: "En el orden en que se muestran; la primera es la foto principal." }
+        serviceId: { type: [integer, 'null'], format: int64 }
+        size: { oneOf: [{ $ref: '#/components/schemas/ProductSize' }, { type: 'null' }] }
+        condition: { oneOf: [{ $ref: '#/components/schemas/ProductCondition' }, { type: 'null' }] }
+        material: { type: [string, 'null'] }
+        offeringType: { oneOf: [{ $ref: '#/components/schemas/OfferingType' }, { type: 'null' }] }
+    ProductRequest:
+      type: object
+      required: [title, description, price, photoUrls, serviceId, size, condition, material, offeringType]
+      properties:
+        title: { type: string, maxLength: 100 }
+        description: { type: string, maxLength: 1000 }
+        price: { type: [integer, 'null'], format: int64, minimum: 0 }
+        photoUrls: { type: array, minItems: 1, maxItems: 5, items: { type: string, maxLength: 500 } }
+        serviceId:
+          type: [integer, 'null']
+          format: int64
+          description: "Debe ser uno de los serviceIds del emprendimiento; si no, VALIDATION."
+        size: { oneOf: [{ $ref: '#/components/schemas/ProductSize' }, { type: 'null' }] }
+        condition: { oneOf: [{ $ref: '#/components/schemas/ProductCondition' }, { type: 'null' }] }
+        material: { type: [string, 'null'], maxLength: 100 }
+        offeringType: { oneOf: [{ $ref: '#/components/schemas/OfferingType' }, { type: 'null' }] }
+    ProductDetail:
+      type: object
+      required: [product, business, ownedByCaller]
+      properties:
+        product: { $ref: '#/components/schemas/Product' }
+        business: { $ref: '#/components/schemas/BusinessCard' }
+        ownedByCaller: { type: boolean }
+
+    PendingReview:
+      allOf:
+        - $ref: '#/components/schemas/BusinessCard'
+        - type: object
+          required: [reviewRound, approvals, requiredApprovals, services]
+          properties:
+            reviewRound: { type: integer }
+            approvals: { type: integer, description: "Aprobaciones recibidas en la ronda actual." }
+            requiredApprovals: { type: integer }
+            services: { type: array, items: { $ref: '#/components/schemas/Service' } }
+    ReviewRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { $ref: '#/components/schemas/ReviewDecision' }
+        rejectionReason: { oneOf: [{ $ref: '#/components/schemas/RejectionReason' }, { type: 'null' }], description: "Obligatorio cuando la decisión es REJECTED." }
+        comment: { type: [string, 'null'], maxLength: 500, description: "Obligatorio cuando la decisión es REJECTED." }
+
+    Conversation:
+      type: object
+      required: [id, businessId, businessName, counterpartName, unreadCount]
+      properties:
+        id: { type: integer, format: int64 }
+        businessId: { type: integer, format: int64 }
+        businessName: { type: string }
+        counterpartName: { type: string, description: "Nombre visible de la otra persona; nunca es null. Es su alias; si no tiene, su nombre de pila; si tampoco, \"Usuario\". Si la cuenta fue eliminada, \"Usuario eliminado\"." }
+        lastMessage: { type: [string, 'null'] }
+        lastSentAt: { type: [string, 'null'], format: date-time }
+        lastSenderId: { type: [integer, 'null'], format: int64 }
+        unreadCount: { type: integer }
+    Message:
+      type: object
+      required: [id, conversationId, clientUuid, senderId, content, sentAt]
+      properties:
+        id: { type: integer, format: int64 }
+        conversationId: { type: integer, format: int64 }
+        clientUuid: { type: string, format: uuid }
+        senderId: { type: integer, format: int64 }
+        content: { type: string }
+        sentAt: { type: string, format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+    SendMessageRequest:
+      type: object
+      required: [clientUuid, content]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        content: { type: string, maxLength: 2000 }
+    ReportRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { $ref: '#/components/schemas/ReportReason' }
+        detail: { type: [string, 'null'], maxLength: 500 }
+        messageId: { type: [integer, 'null'], format: int64 }
+
+    Kpi:
+      type: object
+      required: [value, previous]
+      properties:
+        value: { type: integer }
+        previous: { type: integer, description: "La misma métrica en la ventana anterior de igual duración; 0 para todo el período." }
+    MetricValue:
+      type: object
+      required: [label, value]
+      properties:
+        label: { type: string, description: "Nombre de la categoría; nunca es null." }
+        value: { type: integer }
+    Metrics:
+      type: object
+      required: [activeEntrepreneurs, newEntrepreneurs, searches, profileViews, conversations, effectiveConversations, registrations, byRegion, byService, byAgeRange, mostVisitedBusinesses]
+      properties:
+        activeEntrepreneurs: { type: integer }
+        newEntrepreneurs: { type: integer }
+        searches: { $ref: '#/components/schemas/Kpi' }
+        profileViews: { $ref: '#/components/schemas/Kpi' }
+        conversations: { $ref: '#/components/schemas/Kpi' }
+        registrations: { $ref: '#/components/schemas/Kpi' }
+        effectiveConversations: { type: integer, description: "Conversaciones con una respuesta de alguien distinto de quien las inició." }
+        byRegion: { type: array, items: { $ref: '#/components/schemas/MetricValue' } }
+        byService: { type: array, items: { $ref: '#/components/schemas/MetricValue' } }
+        byAgeRange: { type: array, items: { $ref: '#/components/schemas/MetricValue' } }
+        mostVisitedBusinesses: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/MetricValue' } }
+
+x-websocket:
+  url: /api/v1/ws
+  description: |
+    Canal en tiempo real que reemplaza las notificaciones push. El cliente se conecta con
+    `Authorization: Bearer <accessToken>` en el handshake; un token inválido, expirado o de una sesión
+    cerrada se rechaza con 401 antes del upgrade. El cliente solo recibe eventos; toda escritura sigue
+    pasando por REST. Los frames son texto JSON: `{ "type": "...", "data": { ... } }`.
+    El cliente ignora los tipos desconocidos. Al reconectarse llama a `GET /conversations` y
+    `GET /conversations/{id}/messages?afterId=` para ponerse al día, así que el servidor no guarda pendientes.
+    El servidor cierra el socket con el código 1008 cuando vence el token de acceso del handshake o termina
+    su sesión (cierre de sesión, cambio de contraseña, suspensión), y nunca le envía eventos después de eso.
+    Si no puede entregar un evento (envío fallido, lento o acumulado), lo cierra con 4500. En ambos casos
+    el cliente se reconecta con un token vigente.
+  events:
+    message.created:
+      description: Se envía al otro participante cuando se guarda un mensaje.
+      data:
+        allOf:
+          - { $ref: '#/components/schemas/Message' }
+          - type: object
+            required: [senderName]
+            properties:
+              senderName: { type: string }
+    message.read:
+      description: Se envía al remitente cuando la contraparte lee la conversación.
+      data:
+        type: object
+        required: [conversationId, readAt]
+        properties:
+          conversationId: { type: integer, format: int64 }
+          readAt: { type: string, format: date-time }
+  examples:
+    message.created: |
+      {"type":"message.created","data":{"id":812,"conversationId":31,"clientUuid":"5f0c2a8e-4b1d-4c7a-9e3f-2d6b8a1c9e70","senderId":42,"content":"Hola, ¿tienen talla M?","sentAt":"2026-11-09T14:30:00Z","readAt":null,"senderName":"Camila"}}
+    message.read: |
+      {"type":"message.read","data":{"conversationId":31,"readAt":"2026-11-09T14:35:12Z"}}

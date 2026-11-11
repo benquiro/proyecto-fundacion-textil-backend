@@ -8,4 +8,6 @@ import java.util.List;
 public interface CommuneRepository extends JpaRepository<Commune, Long> {
 
     List<Commune> findByRegionIdOrderByNameAsc(Long regionId);
+
+    List<Commune> findAllByOrderByNameAsc();
 }

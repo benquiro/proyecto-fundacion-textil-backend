@@ -1,5 +1,6 @@
 package cl.textilcircular.api.core.model.product;
 
+import cl.textilcircular.api.support.Fixtures;
 import cl.textilcircular.api.core.model.account.Entrepreneur;
 import cl.textilcircular.api.core.model.business.Business;
 import cl.textilcircular.api.core.model.business.ReviewDecision;
@@ -22,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ProductTest {
 
     Entrepreneur owner = entrepreneur();
-    Business business = Business.register(owner, "Taller", "Desc", null, commune(1L), List.of(service(1L)));
+    Business business = Business.register(owner, "Taller", Fixtures.BUSINESS_DESCRIPTION, null, commune(1L), List.of(service(1L)));
     ProductAttributes attributes = new ProductAttributes(ProductSize.M, ProductCondition.GOOD, " Algodón ", OfferingType.REPAIR);
 
     Product product() {

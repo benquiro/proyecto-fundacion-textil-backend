@@ -38,6 +38,29 @@ for example `admin1@textilcircular.cl` (administrator), `valentina.mora@example.
 Without the `dev` profile only the schema and reference data (regions, communes, services, age ranges and
 genders) are loaded.
 
+## API and sessions
+
+The REST API lives under `/api/v1` and follows `docs/api/openapi.yaml`. Protected operations need
+`Authorization: Bearer <accessToken>` from `/auth/login` or a sign-up. Settings:
+
+| Property | Default | Meaning |
+|----------|---------|---------|
+| `app.security.jwt-secret` (env `APP_SECURITY_JWT_SECRET`) | random per start | HMAC key, at least 32 bytes. Without it sessions end on every restart. |
+| `app.security.access-ttl` | `PT15M` | Access token lifetime. |
+| `app.security.refresh-ttl` | `P30D` | Refresh token lifetime. |
+
+### With the Android app on the emulator
+
+The debug app reaches this backend at `http://10.0.2.2:8080/api/v1/`. Android 17 treats that address as
+local network, so on first launch the app asks for the nearby devices permission (`ACCESS_LOCAL_NETWORK`).
+Allow it; if it is denied, every call fails with "Sin conexión". To skip the permission, forward the port
+and build the app against loopback:
+
+```bash
+adb reverse tcp:8080 tcp:8080
+./gradlew installDebug -PapiBaseUrl=http://127.0.0.1:8080/api/v1/   # in the app repository
+```
+
 ## Tests
 
 ```bash
@@ -46,3 +69,9 @@ genders) are loaded.
 
 Repository tests run against a real PostgreSQL 18 container (Testcontainers), with the Flyway schema and
 `ddl-auto=validate`.
+
+## Conventions
+
+- Response and request DTOs use `Instant` (or `OffsetDateTime`) for date-times, never `LocalDateTime`, because the Android app parses them with `OffsetDateTime.parse` and needs the offset.
+- Image URLs returned by the API are always absolute.
+

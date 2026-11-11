@@ -44,13 +44,13 @@ class BusinessRepositoriesTest {
         Business loaded = businesses.findById(business.getId()).orElseThrow();
         assertThat(loaded.getServices()).extracting(TextileService::getId).containsExactly(4L, 2L);
 
-        loaded.edit("Taller", "Desc", null, loaded.getCommune(), data.services(2L, 4L), NOW);
+        loaded.edit("Taller", cl.textilcircular.api.support.Fixtures.BUSINESS_DESCRIPTION, null, loaded.getCommune(), data.services(2L, 4L), NOW);
         data.flushAndClear();
         assertThat(businesses.findById(business.getId()).orElseThrow().getServices())
                 .extracting(TextileService::getId).containsExactly(2L, 4L);
 
         Business again = businesses.findById(business.getId()).orElseThrow();
-        again.edit("Taller", "Desc", null, again.getCommune(), data.services(7L), NOW);
+        again.edit("Taller", cl.textilcircular.api.support.Fixtures.BUSINESS_DESCRIPTION, null, again.getCommune(), data.services(7L), NOW);
         data.flushAndClear();
         assertThat(businesses.findById(business.getId()).orElseThrow().getServices())
                 .extracting(TextileService::getId).containsExactly(7L);
