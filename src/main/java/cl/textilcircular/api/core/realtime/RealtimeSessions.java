@@ -157,15 +157,17 @@ public class RealtimeSessions implements DisposableBean {
                     continue;
                 }
                 pendingCount.decrementAndGet();
-                if (!authorized()) {
-                    close(SESSION_ENDED);
-                    return;
-                }
-                writeStartedAt = System.nanoTime();
+                // The session check queries the database: if it throws, the socket must still close, or
+                // this drainer would die with draining stuck at true and the socket would go silent.
                 try {
+                    if (!authorized()) {
+                        close(SESSION_ENDED);
+                        return;
+                    }
+                    writeStartedAt = System.nanoTime();
                     session.sendMessage(message);
                 } catch (IOException | RuntimeException e) {
-                    log.debug("Closing socket {} of user {} after a failed send: {}", session.getId(), userId, e.toString());
+                    log.debug("Closing socket {} of user {} after a failed delivery: {}", session.getId(), userId, e.toString());
                     close(UNRELIABLE);
                     return;
                 } finally {

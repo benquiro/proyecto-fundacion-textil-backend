@@ -62,6 +62,17 @@ class RealtimeSessionsTest {
     }
 
     @Test
+    void a_failed_session_check_closes_the_socket_instead_of_stalling_it() throws Exception {
+        when(refreshTokens.isActive(anyLong(), any())).thenThrow(new IllegalStateException("pool exhausted"));
+        sessions.add(7, 1, inAnHour(), socket);
+
+        sessions.send(7, "message.read", Map.of("conversationId", 31));
+
+        verify(socket, timeout(2000)).close(RealtimeSessions.UNRELIABLE);
+        assertThat(sessions.connectionCount(7)).isZero();
+    }
+
+    @Test
     void send_returns_while_a_socket_is_stalled_and_keeps_the_order() throws Exception {
         CountDownLatch stalled = new CountDownLatch(1);
         doAnswer(call -> {
