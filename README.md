@@ -1,64 +1,66 @@
 # proyecto-fundacion-textil-backend
 
-REST API for the Fundación Textil Circular mobile app. Spring Boot 4 monolith with PostgreSQL managed by
-Flyway.
+API REST de la app móvil de la Fundación Textil Circular. Monolito Spring Boot 4 con PostgreSQL gestionado
+por Flyway.
 
-## Project structure
+Para implementar una feature nueva, lee primero la [guía para implementar features](docs/backend-feature-guide.md).
 
-The code follows the same `core` + `feature` split as the mobile app:
+## Estructura del proyecto
+
+El código sigue la misma división `core` + `feature` que la app móvil:
 
 ```
 cl.textilcircular.api
-├── core/                  shared by every feature
-│   ├── model/<area>/      JPA entities with the business rules (account, business, product, messaging...)
-│   ├── repository/        Spring Data repositories
-│   ├── error/ validation/ persistence/ crypto/ config/
-└── feature/<name>/        one package per app feature: controller, service, DTOs, MapStruct mapper
+├── core/                  compartido por todas las features
+│   ├── model/<área>/      entidades JPA con las reglas de negocio (account, business, product, messaging...)
+│   ├── repository/        repositorios de Spring Data
+│   ├── error/ validation/ persistence/ crypto/ config/ security/ web/ realtime/
+└── feature/<nombre>/      un paquete por feature de la app: controlador, servicio y DTOs
 ```
 
-The schema lives in `src/main/resources/db/migration`. Rules: `core` never depends on `feature`, a feature
-never depends on another feature, and services only coordinate while business rules stay in the entities.
+El esquema está en `src/main/resources/db/migration`. Reglas: `core` nunca depende de `feature`, una feature
+nunca depende de otra, y los servicios solo coordinan: las reglas de negocio viven en las entidades.
 
-## Requirements
+## Requisitos
 
 - Java 25+
-- Docker (PostgreSQL for local runs and Testcontainers for tests)
+- Docker (PostgreSQL para correr la API en local y Testcontainers para los tests)
 
-## Run locally with demo data
+## Correr en local con datos de demo
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-Spring Boot starts the PostgreSQL service from `compose.yaml`. The `dev` profile also loads
-`db/seed-dev/R__demo_data.sql`, the mobile app's demo data. Every demo account uses the password `Demo1234`,
-for example `admin1@textilcircular.cl` (administrator), `valentina.mora@example.cl` (entrepreneur) and
-`martin.diaz@example.cl` (customer).
+Spring Boot levanta el servicio de PostgreSQL definido en `compose.yaml`; no hay que crear la base a mano. El
+perfil `dev` carga además `db/seed-dev/R__demo_data.sql`, los datos de demo de la app móvil. Todas las cuentas
+de demo usan la contraseña `Demo1234`, por ejemplo `admin1@textilcircular.cl` (administrador),
+`valentina.mora@example.cl` (emprendedora) y `martin.diaz@example.cl` (cliente).
 
-Without the `dev` profile only the schema and reference data (regions, communes, services, age ranges and
-genders) are loaded.
+Sin el perfil `dev` solo se cargan el esquema y los datos de referencia (regiones, comunas, servicios, rangos
+de edad y géneros).
 
-## API and sessions
+## API y sesiones
 
-The REST API lives under `/api/v1` and follows `docs/api/openapi.yaml`. Protected operations need
-`Authorization: Bearer <accessToken>` from `/auth/login` or a sign-up. Settings:
+La API REST vive bajo `/api/v1` y sigue `docs/api/openapi.yaml`. Las operaciones protegidas necesitan
+`Authorization: Bearer <accessToken>`, obtenido con `/auth/login` o con un registro. Configuración:
 
-| Property | Default | Meaning |
-|----------|---------|---------|
-| `app.security.jwt-secret` (env `APP_SECURITY_JWT_SECRET`) | random per start | HMAC key, at least 32 bytes. Without it sessions end on every restart. |
-| `app.security.access-ttl` | `PT15M` | Access token lifetime. |
-| `app.security.refresh-ttl` | `P30D` | Refresh token lifetime. |
+| Propiedad | Por defecto | Significado |
+|-----------|-------------|-------------|
+| `app.security.jwt-secret` (variable `APP_SECURITY_JWT_SECRET`) | aleatoria en cada inicio | Clave HMAC de al menos 32 bytes. Sin ella, las sesiones terminan en cada reinicio. |
+| `app.security.access-ttl` | `PT15M` | Duración del token de acceso. |
+| `app.security.refresh-ttl` | `P30D` | Duración del token de refresco. |
 
-### With the Android app on the emulator
+### Con la app Android en el emulador
 
-The debug app reaches this backend at `http://10.0.2.2:8080/api/v1/`. Android 17 treats that address as
-local network, so on first launch the app asks for the nearby devices permission (`ACCESS_LOCAL_NETWORK`).
-Allow it; if it is denied, every call fails with "Sin conexión". To skip the permission, forward the port
-and build the app against loopback:
+La app de debug llega a este backend en `http://10.0.2.2:8080/api/v1/`. Android 17 trata esa dirección como
+red local, así que en el primer inicio la app pide el permiso de dispositivos cercanos
+(`ACCESS_LOCAL_NETWORK`). Acéptalo: si se rechaza, todas las llamadas fallan con "Sin conexión". Para evitar
+el permiso, redirige el puerto y compila la app apuntando a loopback:
 
 ```bash
 adb reverse tcp:8080 tcp:8080
-./gradlew installDebug -PapiBaseUrl=http://127.0.0.1:8080/api/v1/   # in the app repository
+./gradlew installDebug -PapiBaseUrl=http://127.0.0.1:8080/api/v1/   # en el repositorio de la app
 ```
 
 ## Tests
@@ -67,11 +69,11 @@ adb reverse tcp:8080 tcp:8080
 ./mvnw test
 ```
 
-Repository tests run against a real PostgreSQL 18 container (Testcontainers), with the Flyway schema and
-`ddl-auto=validate`.
+Los tests corren contra un contenedor real de PostgreSQL 18 (Testcontainers), con el esquema de Flyway y
+`ddl-auto=validate`. Necesitan Docker abierto.
 
-## Conventions
+## Convenciones
 
-- Response and request DTOs use `Instant` (or `OffsetDateTime`) for date-times, never `LocalDateTime`, because the Android app parses them with `OffsetDateTime.parse` and needs the offset.
-- Image URLs returned by the API are always absolute.
-
+- Los DTOs de petición y respuesta usan `Instant` (u `OffsetDateTime`) para fechas con hora, nunca
+  `LocalDateTime`, porque la app Android las lee con `OffsetDateTime.parse` y necesita el desfase horario.
+- Las URLs de imágenes que devuelve la API son siempre absolutas.
