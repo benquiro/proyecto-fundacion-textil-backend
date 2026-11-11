@@ -61,7 +61,14 @@ class RealtimeApiTest {
     /** Collects the first text frame the server pushes. */
     static class Listener implements WebSocket.Listener {
         final CompletableFuture<String> firstFrame = new CompletableFuture<>();
+        final CompletableFuture<Integer> closeCode = new CompletableFuture<>();
         final StringBuilder partial = new StringBuilder();
+
+        @Override
+        public CompletionStage<?> onClose(WebSocket socket, int statusCode, String reason) {
+            closeCode.complete(statusCode);
+            return null;
+        }
 
         @Override
         public CompletionStage<?> onText(WebSocket socket, CharSequence data, boolean last) {
@@ -140,6 +147,21 @@ class RealtimeApiTest {
         Session session = signUp();
 
         assertThat(refusedStatus(() -> open("/ws", session.access(), new Listener()))).isEqualTo(404);
+    }
+
+    @Test
+    void after_logout_the_open_socket_gets_no_event_and_is_closed() throws Exception {
+        Session session = signUp();
+        Listener listener = new Listener();
+        open("/api/v1/ws", session.access(), listener);
+        awaitTrue(() -> realtime.connectionCount(session.userId()) == 1);
+        post("/api/v1/auth/logout", "{\"refreshToken\":\"%s\"}".formatted(session.refresh()));
+
+        realtime.send(session.userId(), "message.read", Map.of("conversationId", 31));
+
+        assertThat(listener.closeCode.get(5, TimeUnit.SECONDS)).isEqualTo(1008);
+        assertThat(listener.firstFrame).isNotDone();
+        awaitTrue(() -> realtime.connectionCount(session.userId()) == 0);
     }
 
     @Test

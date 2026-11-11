@@ -11,7 +11,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
  * Tracks each authenticated socket under its user. The handshake already went through the bearer-token
- * filter chain, so the principal is the caller's verified access token.
+ * filter chain, so the principal is the caller's verified access token, which always carries an expiry.
  */
 @Component
 @RequiredArgsConstructor
@@ -27,9 +27,9 @@ class RealtimeHandler extends TextWebSocketHandler {
             session.close(CloseStatus.POLICY_VIOLATION);
             return;
         }
-        long userId = Caller.of(auth.getToken()).userId();
-        session.getAttributes().put(USER_ID, userId);
-        sessions.add(userId, session);
+        Caller caller = Caller.of(auth.getToken());
+        session.getAttributes().put(USER_ID, caller.userId());
+        sessions.add(caller.userId(), caller.sessionId(), auth.getToken().getExpiresAt(), session);
     }
 
     @Override

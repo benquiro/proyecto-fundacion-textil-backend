@@ -1505,6 +1505,10 @@ x-websocket:
     pasando por REST. Los frames son texto JSON: `{ "type": "...", "data": { ... } }`.
     El cliente ignora los tipos desconocidos. Al reconectarse llama a `GET /conversations` y
     `GET /conversations/{id}/messages?afterId=` para ponerse al día, así que el servidor no guarda pendientes.
+    El servidor cierra el socket con el código 1008 cuando vence el token de acceso del handshake o termina
+    su sesión (cierre de sesión, cambio de contraseña, suspensión), y nunca le envía eventos después de eso.
+    Si no puede entregar un evento (envío fallido, lento o acumulado), lo cierra con 4500. En ambos casos
+    el cliente se reconecta con un token vigente.
   events:
     message.created:
       description: Se envía al otro participante cuando se guarda un mensaje.
