@@ -37,7 +37,13 @@ public class RealtimeSessions {
         // A raw WebSocketSession must not be sent to from two threads at once; the decorator serializes sends.
         WebSocketSession concurrent = new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MILLIS,
                 BUFFER_SIZE_LIMIT_BYTES);
-        byUser.computeIfAbsent(userId, id -> new ConcurrentHashMap<>()).put(session.getId(), concurrent);
+        // Inside compute: remove() may drop an emptied entry at the same moment, and a put on that
+        // dropped map would lose this socket.
+        byUser.compute(userId, (id, sessions) -> {
+            Map<String, WebSocketSession> current = sessions == null ? new ConcurrentHashMap<>() : sessions;
+            current.put(session.getId(), concurrent);
+            return current;
+        });
     }
 
     void remove(long userId, WebSocketSession session) {
