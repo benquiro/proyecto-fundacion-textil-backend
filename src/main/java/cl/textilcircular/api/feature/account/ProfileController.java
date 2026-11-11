@@ -14,7 +14,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -36,11 +35,12 @@ class ProfileController {
         return profiles.get(Caller.of(jwt));
     }
 
-    @Operation(summary = "Actualizar mi perfil", tags = "Profile", description = "`email` es obligatorio. `alias` se reemplaza tal como se envía. `ageRangeId`, `genderId` y los "
-            + "nombres solo aplican a emprendedores; si omites los dos ids se conservan los actuales.")
+    @Operation(summary = "Reemplazar mi perfil", tags = "Profile", description = "Las seis propiedades deben estar presentes; las que no "
+            + "tienen valor se envían como `null`. `alias` es obligatorio para clientes; para emprendedores, `null` lo borra. "
+            + "`firstName`, `lastName`, `ageRangeId` y `genderId` son obligatorios para emprendedores y deben ser `null` para los demás roles.")
     @ApiResponse(responseCode = "200", description = "Perfil actualizado")
     @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: otra cuenta usa ese correo")
-    @PatchMapping("/me")
+    @PutMapping("/me")
     Profile update(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt, @RequestBody UpdateProfileRequest request) {
         return profiles.update(Caller.of(jwt), request);
     }

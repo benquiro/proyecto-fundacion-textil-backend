@@ -21,7 +21,10 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -77,34 +80,107 @@ class ProfileApiTest {
                 .andExpect(jsonPath("$.email").value("cami@demo.cl"))
                 .andExpect(jsonPath("$.entrepreneur").doesNotExist());
 
-        call(HttpMethod.PATCH, "/me", cami.access(), "{\"email\":\"Nueva@demo.cl\",\"alias\":\"Camila\"}")
+        call(HttpMethod.PUT, "/me", cami.access(), customerProfile("Nueva@demo.cl", "Camila"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("nueva@demo.cl"))
                 .andExpect(jsonPath("$.alias").value("Camila"));
 
-        call(HttpMethod.PATCH, "/me", cami.access(), "{\"email\":\"otra@demo.cl\",\"alias\":\"Camila\"}")
+        call(HttpMethod.PUT, "/me", cami.access(), customerProfile("otra@demo.cl", "Camila"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("EMAIL_TAKEN"));
-        call(HttpMethod.PATCH, "/me", cami.access(), "{\"email\":\"nueva@demo.cl\"}")
+        call(HttpMethod.PUT, "/me", cami.access(), customerProfile("nueva@demo.cl", null))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("alias"));
     }
 
-    @Test
-    void entrepreneur_profile_keeps_the_rut() throws Exception {
-        Tokens ana = session(call(HttpMethod.POST, "/auth/register/entrepreneur", null, """
-                {"email":"ana@demo.cl","password":"Secreta123","rut":"11111111-1","firstName":"Ana",
+    static String customerProfile(String email, String alias) {
+        return """
+                {"email":"%s","alias":%s,"firstName":null,"lastName":null,"ageRangeId":null,"genderId":null}"""
+                .formatted(email, alias == null ? "null" : "\"" + alias + "\"");
+    }
+
+    Tokens signUpEntrepreneur() throws Exception {
+        return session(call(HttpMethod.POST, "/auth/register/entrepreneur", null, """
+                {"email":"ana@demo.cl","password":"Secreta123","alias":"Anita","rut":"11111111-1","firstName":"Ana",
                  "lastName":"Pérez","ageRangeId":2,"genderId":1,
                  "business":{"name":"Hilos de Ana","description":"Reparación y transformación de prendas con técnicas de costura a mano.",
-                             "communeId":1,"serviceIds":[2]}}"""));
+                             "photoUrl":null,"communeId":1,"serviceIds":[2]}}""").andExpect(status().isCreated()));
+    }
 
-        call(HttpMethod.PATCH, "/me", ana.access(), """
-                {"email":"ana@demo.cl","firstName":"Ana María","lastName":"Pérez","genderId":2}""")
+    @Test
+    void entrepreneur_profile_keeps_the_rut() throws Exception {
+        Tokens ana = signUpEntrepreneur();
+
+        call(HttpMethod.PUT, "/me", ana.access(), """
+                {"email":"ana@demo.cl","alias":"Anita","firstName":"Ana María","lastName":"Pérez","ageRangeId":2,"genderId":2}""")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entrepreneur.rut").value("11111111-1"))
                 .andExpect(jsonPath("$.entrepreneur.firstName").value("Ana María"))
                 .andExpect(jsonPath("$.entrepreneur.ageRangeId").value(2))
                 .andExpect(jsonPath("$.entrepreneur.genderId").value(2));
+    }
+
+    @Test
+    void put_without_a_property_is_rejected_and_changes_nothing() throws Exception {
+        Tokens cami = signUp("cami@demo.cl");
+
+        call(HttpMethod.PUT, "/me", cami.access(), """
+                {"email":"nueva@demo.cl","firstName":null,"lastName":null,"ageRangeId":null,"genderId":null}""")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"))
+                .andExpect(jsonPath("$.errors[0].field").value("alias"))
+                .andExpect(jsonPath("$.errors[0].message").value("Falta este campo. Envíalo como null si quieres dejarlo vacío"));
+        call(HttpMethod.GET, "/me", cami.access(), null)
+                .andExpect(jsonPath("$.email").value("cami@demo.cl"))
+                .andExpect(jsonPath("$.alias").value("Cami"));
+    }
+
+    @Test
+    void customer_cannot_send_entrepreneur_data() throws Exception {
+        Tokens cami = signUp("cami@demo.cl");
+
+        call(HttpMethod.PUT, "/me", cami.access(), """
+                {"email":"cami@demo.cl","alias":"Otra","firstName":"Ana","lastName":null,"ageRangeId":null,"genderId":null}""")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"))
+                .andExpect(jsonPath("$.errors[0].field").value("firstName"))
+                .andExpect(jsonPath("$.errors[0].message").value("Solo las personas emprendedoras tienen este dato"));
+        call(HttpMethod.GET, "/me", cami.access(), null).andExpect(jsonPath("$.alias").value("Cami"));
+    }
+
+    @Test
+    void entrepreneur_put_requires_the_demographics() throws Exception {
+        Tokens ana = signUpEntrepreneur();
+
+        call(HttpMethod.PUT, "/me", ana.access(), """
+                {"email":"ana@demo.cl","alias":"Otra","firstName":"Ana","lastName":"Pérez","ageRangeId":null,"genderId":1}""")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"))
+                .andExpect(jsonPath("$.errors[0].field").value("ageRangeId"))
+                .andExpect(jsonPath("$.errors[0].message").value("Elige tu rango de edad"));
+        call(HttpMethod.GET, "/me", ana.access(), null)
+                .andExpect(jsonPath("$.alias").value("Anita"))
+                .andExpect(jsonPath("$.entrepreneur.ageRangeId").value(2));
+    }
+
+    @Test
+    void entrepreneur_can_clear_the_alias() throws Exception {
+        Tokens ana = signUpEntrepreneur();
+
+        call(HttpMethod.PUT, "/me", ana.access(), """
+                {"email":"ana@demo.cl","alias":null,"firstName":"Ana","lastName":"Pérez","ageRangeId":2,"genderId":1}""")
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"alias\":null")))
+                .andExpect(jsonPath("$.alias").value(nullValue()));
+    }
+
+    @Test
+    void patch_me_is_gone() throws Exception {
+        Tokens cami = signUp("cami@demo.cl");
+
+        call(HttpMethod.PATCH, "/me", cami.access(), customerProfile("cami@demo.cl", "Camila"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
     }
 
     @Test
@@ -189,7 +265,7 @@ class ProfileApiTest {
             {"email":"ana@demo.cl","password":"Secreta123","rut":"11111111-1","firstName":"Ana",
              "lastName":"Pérez","ageRangeId":2,"genderId":1,
              "business":{"name":"Hilos de Ana","description":"Reparación y transformación de prendas con técnicas de costura a mano.",
-                         "communeId":1,"serviceIds":[2]}}""";
+                         "photoUrl":null,"communeId":1,"serviceIds":[2]}}""";
 
     @Test
     void deleting_an_entrepreneur_ends_the_session_and_frees_email_and_rut() throws Exception {

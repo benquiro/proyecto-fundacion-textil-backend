@@ -6,6 +6,7 @@ import cl.textilcircular.api.core.model.account.Role;
 import cl.textilcircular.api.core.model.account.UserAccount;
 import cl.textilcircular.api.core.security.TokenService.TokenPair;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -28,8 +29,12 @@ final class AccountDtos {
                                    @Schema(description = "Obligatorio para clientes", example = "Cliente Textil") String alias) {
     }
 
-    record BusinessDraft(String name, String description, String photoUrl, Long communeId,
-                         @Schema(description = "1 o 2 ids de servicios textiles distintos") List<Long> serviceIds) {
+    /** Shared with {@code PUT /me/business}: every property must be present (S1 of contract-hardening). */
+    record BusinessDraft(@JsonProperty(required = true) String name,
+                         @JsonProperty(required = true) String description,
+                         @JsonProperty(required = true) String photoUrl,
+                         @JsonProperty(required = true) Long communeId,
+                         @JsonProperty(required = true) @Schema(description = "1 o 2 ids de servicios textiles distintos") List<Long> serviceIds) {
     }
 
     record RegisterEntrepreneurRequest(String email, String password, @Schema(description = "Opcional") String alias,
@@ -38,8 +43,13 @@ final class AccountDtos {
                                        @Schema(description = "Primer emprendimiento de la persona emprendedora") BusinessDraft business) {
     }
 
-    record UpdateProfileRequest(String email, String alias, String firstName, String lastName, Long ageRangeId,
-                                Long genderId) {
+    /** A {@code PUT} body: every property must be present, {@code null} clears it. */
+    record UpdateProfileRequest(@JsonProperty(required = true) String email,
+                                @JsonProperty(required = true) String alias,
+                                @JsonProperty(required = true) String firstName,
+                                @JsonProperty(required = true) String lastName,
+                                @JsonProperty(required = true) Long ageRangeId,
+                                @JsonProperty(required = true) Long genderId) {
     }
 
     record ChangePasswordRequest(String currentPassword,

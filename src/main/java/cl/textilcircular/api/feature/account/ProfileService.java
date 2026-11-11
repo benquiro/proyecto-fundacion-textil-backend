@@ -2,6 +2,7 @@ package cl.textilcircular.api.feature.account;
 
 import cl.textilcircular.api.core.error.NotFoundException;
 import cl.textilcircular.api.core.error.UnauthorizedException;
+import cl.textilcircular.api.core.error.ValidationException;
 import cl.textilcircular.api.core.model.account.AccountErrors;
 import cl.textilcircular.api.core.model.account.AccountStatus;
 import cl.textilcircular.api.core.model.account.Entrepreneur;
@@ -55,7 +56,7 @@ class ProfileService {
         return Profile.of(account, entrepreneurOf(account));
     }
 
-    /** RUT never changes; entrepreneur fields are ignored for other roles. */
+    /** Replaces the caller's profile. RUT never changes; entrepreneur fields must be null for other roles. */
     Profile update(Caller caller, UpdateProfileRequest request) {
         UserAccount account = activeAccount(caller);
         String email = Validators.email(request.email());
@@ -63,15 +64,30 @@ class ProfileService {
             throw AccountErrors.emailTaken();
         }
         Entrepreneur entrepreneur = entrepreneurOf(account);
-        account.updateProfile(email, request.alias());
-        if (entrepreneur != null) {
-            AgeRange ageRange = request.ageRangeId() == null ? entrepreneur.getAgeRange()
-                    : ageRanges.findById(request.ageRangeId()).orElse(null);
-            Gender gender = request.genderId() == null ? entrepreneur.getGender()
-                    : genders.findById(request.genderId()).orElse(null);
-            entrepreneur.updateProfile(request.firstName(), request.lastName(), ageRange, gender);
+        if (entrepreneur == null) {
+            rejectEntrepreneurData(request);
+            account.updateProfile(email, request.alias());
+            return Profile.of(account, null);
         }
+        AgeRange ageRange = request.ageRangeId() == null ? null : ageRanges.findById(request.ageRangeId()).orElse(null);
+        Gender gender = request.genderId() == null ? null : genders.findById(request.genderId()).orElse(null);
+        // A ValidationException from either call rolls the whole transaction back.
+        account.updateProfile(email, request.alias());
+        entrepreneur.updateProfile(request.firstName(), request.lastName(), ageRange, gender);
         return Profile.of(account, entrepreneur);
+    }
+
+    private static void rejectEntrepreneurData(UpdateProfileRequest request) {
+        rejectIfPresent("firstName", request.firstName());
+        rejectIfPresent("lastName", request.lastName());
+        rejectIfPresent("ageRangeId", request.ageRangeId());
+        rejectIfPresent("genderId", request.genderId());
+    }
+
+    private static void rejectIfPresent(String field, Object value) {
+        if (value != null) {
+            throw new ValidationException(field, "Solo las personas emprendedoras tienen este dato");
+        }
     }
 
     /** Keeps the caller's own session and ends every other one. */

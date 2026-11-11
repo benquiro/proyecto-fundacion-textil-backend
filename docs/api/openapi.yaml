@@ -22,12 +22,19 @@ info:
       legible por máquina) y `errors` (el campo inválido; el backend informa el primero que encuentra).
       `detail` y `errors[].message` son textos en español para el usuario, que la app muestra tal cual.
     - Las listas que pueden crecer se paginan con `page` (desde 0) y `size` (20 por defecto, máximo 50).
-    - Los valores ausentes se envían como `null`, así que los clientes deben aceptar tanto una propiedad
-      `null` como una ausente.
+    - Las respuestas incluyen siempre todas las propiedades de su schema: una propiedad sin valor se envía
+      como `null`, nunca se omite. Los clientes deben ignorar las propiedades que no conozcan.
     - Toda URL de imagen en peticiones y respuestas es absoluta (`http://` o `https://`). El backend nunca
       devuelve rutas relativas como `/media/<archivo>`; la app usa la URL tal cual.
-    - En `PUT` el cuerpo representa el recurso completo: un campo opcional ausente o `null` se borra.
-      `PATCH` sigue las reglas descritas en cada operación.
+    - Cuerpos de petición:
+      - `POST` (crear o ejecutar una acción): una propiedad opcional se puede enviar como `null` u omitir;
+        las dos formas significan "sin valor".
+      - `PUT` (reemplazar el recurso completo): toda propiedad del schema es obligatoria y debe estar
+        presente. Las opcionales aceptan `null`, que deja el campo vacío. Si falta una propiedad, responde
+        400 `VALIDATION` con ese campo en `errors` (con puntos si está anidado, por ejemplo
+        `business.photoUrl`), así un cliente desactualizado nunca borra datos sin querer.
+      - Un schema que se usa en un `PUT` exige todas sus propiedades también en el `POST` que lo comparte.
+      - La API no usa `PATCH`.
 servers:
   - url: http://10.0.2.2:8080/api/v1
     description: Backend local visto desde el emulador de Android
@@ -192,17 +199,18 @@ paths:
               schema: { $ref: '#/components/schemas/Profile' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/AccountNotActive' }
-    patch:
+    put:
       tags: [profile]
       operationId: updateProfile
-      summary: Actualizar mi perfil
+      summary: Reemplazar mi perfil
       description: |
-        Cambia los datos personales de quien llama y devuelve el perfil actualizado.
+        Reemplaza los datos personales de quien llama y devuelve el perfil actualizado. Las seis propiedades
+        deben estar presentes; las que no tienen valor se envían como `null`.
         - `email` es obligatorio. Si se cambia por uno que usa otra cuenta, responde 409 `EMAIL_TAKEN`.
-        - `alias` siempre se reemplaza: null o ausente lo borra. Los clientes deben conservar uno.
-        - `firstName` y `lastName` son obligatorios para emprendedores. `ageRangeId` y `genderId` conservan
-          su valor actual cuando son null o están ausentes.
-        - El RUT no se puede cambiar. Los campos de emprendedor se ignoran para los demás roles.
+        - `alias` es obligatorio para clientes. Para emprendedores, `null` lo borra.
+        - `firstName`, `lastName`, `ageRangeId` y `genderId` son obligatorios (no `null`) para emprendedores,
+          y deben ser `null` para los demás roles; si no, responde 400 `VALIDATION`.
+        - El RUT no se puede cambiar.
       requestBody:
         required: true
         content:
@@ -551,7 +559,7 @@ paths:
         de revisión, cualquiera sea su estado, y sale del directorio hasta que lo aprueben de nuevo; así
         un voto antiguo nunca aprueba contenido nuevo. Un emprendimiento REJECTED se reenvía a revisión de
         esta forma. Guardar los mismos valores no cambia nada.
-        Un campo opcional ausente o `null` se borra: si no se envía `photoUrl`, el emprendimiento queda sin foto.
+        Todas las propiedades deben estar presentes; `photoUrl: null` deja el emprendimiento sin foto.
       requestBody:
         required: true
         content:
@@ -644,7 +652,7 @@ paths:
       description: |
         Reemplaza todos los campos del producto, con las mismas reglas que al crearlo. Las fotos se
         reemplazan por la lista enviada; la primera pasa a ser la foto principal.
-        Un campo opcional ausente o `null` se borra (por ejemplo, el precio o la talla).
+        Todas las propiedades deben estar presentes; `null` borra un campo opcional (por ejemplo, el precio o la talla).
       requestBody:
         required: true
         content:
@@ -1202,7 +1210,7 @@ components:
                 genderId: { type: integer, format: int64 }
     UpdateProfileRequest:
       type: object
-      required: [email]
+      required: [email, alias, firstName, lastName, ageRangeId, genderId]
       properties:
         email: { type: string, maxLength: 254 }
         alias: { type: [string, 'null'], maxLength: 40 }
@@ -1266,7 +1274,7 @@ components:
         createdAt: { type: string, format: date-time }
     ContentRequest:
       type: object
-      required: [type]
+      required: [type, title, body, imageUrl, eventAt, eventLocation]
       description: TEXT requiere body; IMAGE requiere imageUrl; ARTICLE requiere title y body; EVENT requiere title y eventAt.
       properties:
         type: { $ref: '#/components/schemas/ContentType' }
@@ -1314,7 +1322,7 @@ components:
             products: { type: array, items: { $ref: '#/components/schemas/Product' } }
     BusinessDraft:
       type: object
-      required: [name, description, communeId, serviceIds]
+      required: [name, description, photoUrl, communeId, serviceIds]
       properties:
         name: { type: string, maxLength: 100 }
         description: { type: string, minLength: 50, maxLength: 500 }
@@ -1383,7 +1391,7 @@ components:
         offeringType: { oneOf: [{ $ref: '#/components/schemas/OfferingType' }, { type: 'null' }] }
     ProductRequest:
       type: object
-      required: [title, description, photoUrls]
+      required: [title, description, price, photoUrls, serviceId, size, condition, material, offeringType]
       properties:
         title: { type: string, maxLength: 100 }
         description: { type: string, maxLength: 1000 }

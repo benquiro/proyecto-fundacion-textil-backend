@@ -91,7 +91,7 @@ class AuthApiTest {
                 {"email":"ana@demo.cl","password":"Secreta123","rut":"11.111.111-1","firstName":"Ana",
                  "lastName":"Pérez","ageRangeId":2,"genderId":1,
                  "business":{"name":"Hilos de Ana","description":"Reparación y transformación de prendas con técnicas de costura a mano.",
-                             "communeId":1,"serviceIds":[%s]}}""";
+                             "photoUrl":null,"communeId":1,"serviceIds":[%s]}}""";
 
         post("/auth/register/entrepreneur", body.formatted("1,1"))
                 .andExpect(status().isBadRequest())
@@ -106,5 +106,22 @@ class AuthApiTest {
         post("/auth/register/entrepreneur", body.formatted("2").replace("ana@demo.cl", "otra@demo.cl"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RUT_TAKEN"));
+    }
+
+    @Test
+    void entrepreneur_registration_requires_every_business_property() throws Exception {
+        String body = """
+                {"email":"ana@demo.cl","password":"Secreta123","rut":"11.111.111-1","firstName":"Ana",
+                 "lastName":"Pérez","ageRangeId":2,"genderId":1,
+                 "business":{"name":"Hilos de Ana","description":"Reparación y transformación de prendas con técnicas de costura a mano.",
+                             %s"communeId":1,"serviceIds":[2]}}""";
+
+        post("/auth/register/entrepreneur", body.formatted(""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION"))
+                .andExpect(jsonPath("$.errors[0].field").value("business.photoUrl"))
+                .andExpect(jsonPath("$.errors[0].message").value("Falta este campo. Envíalo como null si quieres dejarlo vacío"));
+        post("/auth/register/entrepreneur", body.formatted("\"photoUrl\":null,"))
+                .andExpect(status().isCreated());
     }
 }

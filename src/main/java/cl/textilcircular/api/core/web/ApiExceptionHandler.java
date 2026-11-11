@@ -26,6 +26,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import tools.jackson.databind.exc.MismatchedInputException;
+
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** Maps every failure to the contract's problem body. Domain messages pass through unchanged. */
 @Slf4j
@@ -118,8 +122,23 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected @Nullable ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        ProblemDetail body = Problems.of(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", Problems.VALIDATION_DETAIL);
+        ProblemDetail body = missingProperty(ex)
+                .map(field -> Problems.validation(field, Problems.MISSING_PROPERTY_MESSAGE))
+                .orElseGet(() -> Problems.of(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", Problems.VALIDATION_DETAIL));
         return handleExceptionInternal(ex, body, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    /** Dotted path of the property a body left out ("business.photoUrl"), when that is the failure. */
+    private static Optional<String> missingProperty(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof MismatchedInputException mismatch && !mismatch.getPath().isEmpty()
+                    && String.valueOf(mismatch.getOriginalMessage()).startsWith("Missing required creator property")) {
+                return Optional.of(mismatch.getPath().stream()
+                        .map(ref -> ref.getPropertyName() != null ? ref.getPropertyName() : String.valueOf(ref.getIndex()))
+                        .collect(Collectors.joining(".")));
+            }
+        }
+        return Optional.empty();
     }
 
     /** Spring MVC's own errors (404, 405, 415...) get the {@code code} extension too. */

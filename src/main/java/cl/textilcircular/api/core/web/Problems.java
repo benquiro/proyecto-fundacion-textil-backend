@@ -16,6 +16,7 @@ public final class Problems {
     public static final String VALIDATION_DETAIL = "Revisa los datos ingresados";
     public static final String UNAUTHORIZED_DETAIL = "Tu sesión expiró. Inicia sesión de nuevo";
     public static final String FORBIDDEN_DETAIL = "No tienes permiso para hacer esto";
+    public static final String MISSING_PROPERTY_MESSAGE = "Falta este campo. Envíalo como null si quieres dejarlo vacío";
 
     private Problems() {
     }
