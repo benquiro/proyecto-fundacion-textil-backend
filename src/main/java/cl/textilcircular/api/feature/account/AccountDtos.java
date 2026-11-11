@@ -29,7 +29,7 @@ final class AccountDtos {
                                    @Schema(description = "Obligatorio para clientes", example = "Cliente Textil") String alias) {
     }
 
-    /** Shared with {@code PUT /me/business}: every property must be present (S1 of contract-hardening). */
+    /** Shared with {@code PUT /me/business}, so every property must be present (openapi.yaml: request bodies). */
     record BusinessDraft(@JsonProperty(required = true) String name,
                          @JsonProperty(required = true) String description,
                          @JsonProperty(required = true) String photoUrl,

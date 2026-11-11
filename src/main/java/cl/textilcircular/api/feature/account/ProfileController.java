@@ -35,9 +35,8 @@ class ProfileController {
         return profiles.get(Caller.of(jwt));
     }
 
-    @Operation(summary = "Reemplazar mi perfil", tags = "Profile", description = "Las seis propiedades deben estar presentes; las que no "
-            + "tienen valor se envían como `null`. `alias` es obligatorio para clientes; para emprendedores, `null` lo borra. "
-            + "`firstName`, `lastName`, `ageRangeId` y `genderId` son obligatorios para emprendedores y deben ser `null` para los demás roles.")
+    @Operation(summary = "Reemplazar mi perfil", tags = "Profile",
+            description = "Reemplazo completo: todas las propiedades presentes. Las reglas por rol están en docs/api/openapi.yaml.")
     @ApiResponse(responseCode = "200", description = "Perfil actualizado")
     @ApiResponse(responseCode = "409", description = "`EMAIL_TAKEN`: otra cuenta usa ese correo")
     @PutMapping("/me")
