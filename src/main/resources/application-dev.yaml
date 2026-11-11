@@ -1,0 +1,4 @@
+# Local development: also loads the demo data (accounts, businesses, chats) from the app seed.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed-dev
