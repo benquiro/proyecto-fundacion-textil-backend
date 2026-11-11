@@ -69,3 +69,9 @@ adb reverse tcp:8080 tcp:8080
 
 Repository tests run against a real PostgreSQL 18 container (Testcontainers), with the Flyway schema and
 `ddl-auto=validate`.
+
+## Conventions
+
+- Response and request DTOs use `Instant` (or `OffsetDateTime`) for date-times, never `LocalDateTime`, because the Android app parses them with `OffsetDateTime.parse` and needs the offset.
+- Image URLs returned by the API are always absolute.
+

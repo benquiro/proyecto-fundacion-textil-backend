@@ -14,7 +14,8 @@ info:
 
     Convenciones
     - Ruta base `/api/v1`. Cuerpos JSON en camelCase. Los identificadores son enteros de 64 bits.
-    - Las fechas y horas son instantes ISO-8601 en UTC (`2026-11-09T14:30:00Z`).
+    - Las fechas y horas son instantes ISO-8601 en UTC y siempre llevan zona (`2026-11-09T14:30:00Z`).
+      Una fecha sin zona (`2026-11-09T14:30:00`) no cumple el contrato.
     - Las operaciones protegidas requieren `Authorization: Bearer <accessToken>`. La identidad, el rol
       y la propiedad de los recursos de quien llama siempre salen del token, nunca del cuerpo de la petición.
     - Los errores usan `application/problem+json` (RFC 9457) con dos extensiones: `code` (estable,
@@ -23,6 +24,10 @@ info:
     - Las listas que pueden crecer se paginan con `page` (desde 0) y `size` (20 por defecto, máximo 50).
     - Los valores ausentes se envían como `null`, así que los clientes deben aceptar tanto una propiedad
       `null` como una ausente.
+    - Toda URL de imagen en peticiones y respuestas es absoluta (`http://` o `https://`). El backend nunca
+      devuelve rutas relativas como `/media/<archivo>`; la app usa la URL tal cual.
+    - En `PUT` el cuerpo representa el recurso completo: un campo opcional ausente o `null` se borra.
+      `PATCH` sigue las reglas descritas en cada operación.
 servers:
   - url: http://10.0.2.2:8080/api/v1
     description: Backend local visto desde el emulador de Android
@@ -546,6 +551,7 @@ paths:
         de revisión, cualquiera sea su estado, y sale del directorio hasta que lo aprueben de nuevo; así
         un voto antiguo nunca aprueba contenido nuevo. Un emprendimiento REJECTED se reenvía a revisión de
         esta forma. Guardar los mismos valores no cambia nada.
+        Un campo opcional ausente o `null` se borra: si no se envía `photoUrl`, el emprendimiento queda sin foto.
       requestBody:
         required: true
         content:
@@ -638,6 +644,7 @@ paths:
       description: |
         Reemplaza todos los campos del producto, con las mismas reglas que al crearlo. Las fotos se
         reemplazan por la lista enviada; la primera pasa a ser la foto principal.
+        Un campo opcional ausente o `null` se borra (por ejemplo, el precio o la talla).
       requestBody:
         required: true
         content:
@@ -893,6 +900,7 @@ paths:
       description: |
         Sube una imagen JPG, PNG o WEBP de hasta 5 MB y devuelve su URL. Esa URL es la que después se envía
         en `photoUrl` (emprendimiento), `photoUrls` (productos) o `imageUrl` (contenidos). Requiere sesión.
+        La `url` devuelta siempre es absoluta.
       requestBody:
         required: true
         content:
@@ -1114,7 +1122,7 @@ components:
             type: object
             required: [field, message]
             properties:
-              field: { type: string, description: "Nombre de la propiedad de la petición, por ejemplo `email` o `business.name`." }
+              field: { type: string, description: "Nombre de la propiedad de la petición, por ejemplo `email` o `business.name`. En listas se informa el nombre sin índice (`photoUrls`, `serviceIds`), nunca `photoUrls[0]`." }
               message: { type: string }
 
     Role: { type: string, enum: [CUSTOMER, ENTREPRENEUR, ADMINISTRATOR] }
@@ -1310,7 +1318,7 @@ components:
       properties:
         name: { type: string, maxLength: 100 }
         description: { type: string, minLength: 50, maxLength: 500 }
-        photoUrl: { type: [string, 'null'], maxLength: 500, description: "URL `http(s)://` o una ruta `/media/<archivo>`." }
+        photoUrl: { type: [string, 'null'], maxLength: 500, description: "URL absoluta `http(s)://`, normalmente la devuelta por `POST /media`." }
         communeId: { type: integer, format: int64 }
         serviceIds:
           type: array
@@ -1422,7 +1430,7 @@ components:
         id: { type: integer, format: int64 }
         businessId: { type: integer, format: int64 }
         businessName: { type: string }
-        counterpartName: { type: string, description: 'Lo que quien llama ve como contacto: el emprendimiento para el cliente, el alias del cliente para el dueño.' }
+        counterpartName: { type: string, description: "Nombre visible de la otra persona; nunca es null. Es su alias; si no tiene, su nombre de pila; si tampoco, \"Usuario\". Si la cuenta fue eliminada, \"Usuario eliminado\"." }
         lastMessage: { type: [string, 'null'] }
         lastSentAt: { type: [string, 'null'], format: date-time }
         lastSenderId: { type: [integer, 'null'], format: int64 }
@@ -1462,7 +1470,7 @@ components:
       type: object
       required: [label, value]
       properties:
-        label: { type: string }
+        label: { type: string, description: "Nombre de la categoría; nunca es null." }
         value: { type: integer }
     Metrics:
       type: object
