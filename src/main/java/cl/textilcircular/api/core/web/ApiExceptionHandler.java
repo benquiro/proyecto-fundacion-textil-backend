@@ -28,6 +28,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import tools.jackson.databind.exc.MismatchedInputException;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -128,13 +129,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(ex, body, headers, HttpStatus.BAD_REQUEST, request);
     }
 
-    /** Dotted path of the property a body left out ("business.photoUrl"), when that is the failure. */
+    /**
+     * How Jackson words a {@code @JsonProperty(required = true)} property left out of a body. Jackson has no
+     * dedicated exception type for it (wrong types raise the same {@link MismatchedInputException}), so the
+     * message is the only signal. ProfileApiTest and AuthApiTest fail if an upgrade rewords it.
+     */
+    private static final String JACKSON_MISSING_PROPERTY = "Missing required creator property";
+
+    /**
+     * Dotted path of the property a body left out ("business.photoUrl"), when that is the failure. List
+     * indexes are skipped: the contract names a list field without its index.
+     */
     private static Optional<String> missingProperty(Throwable e) {
         for (Throwable cause = e; cause != null; cause = cause.getCause()) {
             if (cause instanceof MismatchedInputException mismatch && !mismatch.getPath().isEmpty()
-                    && String.valueOf(mismatch.getOriginalMessage()).startsWith("Missing required creator property")) {
+                    && String.valueOf(mismatch.getOriginalMessage()).startsWith(JACKSON_MISSING_PROPERTY)) {
                 return Optional.of(mismatch.getPath().stream()
-                        .map(ref -> ref.getPropertyName() != null ? ref.getPropertyName() : String.valueOf(ref.getIndex()))
+                        .map(ref -> ref.getPropertyName())
+                        .filter(Objects::nonNull)
                         .collect(Collectors.joining(".")));
             }
         }
