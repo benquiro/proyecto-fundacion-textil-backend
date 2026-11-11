@@ -64,6 +64,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, API_BASE_PATH + "/regions", API_BASE_PATH + "/communes",
                                 API_BASE_PATH + "/services", API_BASE_PATH + "/age-ranges",
                                 API_BASE_PATH + "/genders").permitAll()
+                        // Outreach content is public; the app calls it without a token.
+                        .requestMatchers(HttpMethod.GET, API_BASE_PATH + "/contents", API_BASE_PATH + "/contents/*").permitAll()
+                        // The directory works for guests; a token, when sent, is still validated and identifies the caller.
+                        .requestMatchers(HttpMethod.GET, API_BASE_PATH + "/businesses", API_BASE_PATH + "/businesses/*",
+                                API_BASE_PATH + "/products/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, API_BASE_PATH + "/businesses/*/contact-clicks").permitAll()
                         .requestMatchers(API_BASE_PATH + "/admin/**").hasRole("ADMINISTRATOR")
                         .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/swagger-ui.html", "/error").permitAll()
