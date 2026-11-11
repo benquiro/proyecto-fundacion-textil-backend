@@ -71,6 +71,10 @@ public class SecurityConfig {
                                 API_BASE_PATH + "/products/*").permitAll()
                         .requestMatchers(HttpMethod.POST, API_BASE_PATH + "/businesses/*/contact-clicks").permitAll()
                         .requestMatchers(API_BASE_PATH + "/admin/**").hasRole("ADMINISTRATOR")
+                        // Rules that depend only on the role live here; those that need data (owner, participant) in the services.
+                        .requestMatchers(HttpMethod.POST, API_BASE_PATH + "/contents").hasRole("ADMINISTRATOR")
+                        .requestMatchers(HttpMethod.PUT, API_BASE_PATH + "/contents/*").hasRole("ADMINISTRATOR")
+                        .requestMatchers(HttpMethod.DELETE, API_BASE_PATH + "/contents/*").hasRole("ADMINISTRATOR")
                         .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/swagger-ui.html", "/error").permitAll()
                         .anyRequest().authenticated())
