@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,17 +19,21 @@ class PublicRoutesApiTest {
     @Autowired
     MockMvc mvc;
 
+    /** Whatever the handler answers (it may not exist yet), the security filter let the guest through. */
+    static final ResultMatcher NOT_REJECTED = result ->
+            assertThat(result.getResponse().getStatus()).as("guest rejected").isNotIn(401, 403);
+
     @Test
     void guests_reach_public_routes() throws Exception {
-        mvc.perform(get("/api/v1/contents")).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/contents/1")).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/businesses")).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/businesses/1")).andExpect(status().isNotFound());
-        mvc.perform(get("/api/v1/products/1")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/contents")).andExpect(NOT_REJECTED);
+        mvc.perform(get("/api/v1/contents/1")).andExpect(NOT_REJECTED);
+        mvc.perform(get("/api/v1/businesses")).andExpect(NOT_REJECTED);
+        mvc.perform(get("/api/v1/businesses/1")).andExpect(NOT_REJECTED);
+        mvc.perform(get("/api/v1/products/1")).andExpect(NOT_REJECTED);
         mvc.perform(post("/api/v1/businesses/1/contact-clicks")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isNotFound());
+                .andExpect(NOT_REJECTED);
     }
 
     @Test
