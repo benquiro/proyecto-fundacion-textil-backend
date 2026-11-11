@@ -50,6 +50,9 @@ public class RefreshToken extends BaseEntity {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    @Column(name = "rotated_at")
+    private Instant rotatedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -73,6 +76,21 @@ public class RefreshToken extends BaseEntity {
 
     public boolean isActive(Instant now) {
         return revokedAt == null && now.isBefore(expiresAt);
+    }
+
+    /** Exchanged for a new pair: revoked, and any later use of it is a reuse. */
+    public void rotate(Instant now) {
+        revoke(now);
+        rotatedAt = now;
+    }
+
+    /** Whether this token was rotated at most {@code window} before {@code now}: a retry, not a replay. */
+    public boolean wasRotatedWithin(Duration window, Instant now) {
+        return rotatedAt != null && !rotatedAt.plus(window).isBefore(now);
+    }
+
+    public boolean wasRotated() {
+        return rotatedAt != null;
     }
 
     public void revoke(Instant now) {

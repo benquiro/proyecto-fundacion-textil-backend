@@ -1,5 +1,6 @@
 package cl.textilcircular.api.core.model.business;
 
+import cl.textilcircular.api.support.Fixtures;
 import cl.textilcircular.api.core.model.account.Entrepreneur;
 import cl.textilcircular.api.core.model.account.UserAccount;
 import cl.textilcircular.api.core.model.reference.TextileService;
@@ -25,7 +26,7 @@ class BusinessTest {
     Entrepreneur owner = entrepreneur();
 
     Business pending() {
-        return Business.register(owner, " Hilos de Barrio ", " Arreglos de ropa ", " ", commune(102L),
+        return Business.register(owner, " Hilos de Barrio ", " "+Fixtures.BUSINESS_DESCRIPTION+" ", " ", commune(102L),
                 List.of(service(4L), service(2L)));
     }
 
@@ -46,7 +47,7 @@ class BusinessTest {
         for (List<TextileService> services : List.of(List.<TextileService>of(),
                 List.of(service(1L), service(2L), service(3L)), List.of(service(1L), service(1L)),
                 List.of(retiredService(5L)))) {
-            assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", null, commune(1L), services))
+            assertThatThrownBy(() -> Business.register(owner, "Taller", Fixtures.BUSINESS_DESCRIPTION, null, commune(1L), services))
                     .isInstanceOf(ValidationException.class)
                     .hasMessage("Elige 1 o 2 servicios distintos")
                     .extracting("field").isEqualTo("serviceIds");
@@ -54,8 +55,16 @@ class BusinessTest {
     }
 
     @Test
+    void descriptionNeedsAtLeastFiftyCharacters() {
+        assertThatThrownBy(() -> Business.register(owner, "Taller", "Muy corta", null, commune(1L), List.of(service(1L))))
+                .isInstanceOf(ValidationException.class)
+                .hasMessage("Escribe al menos 50 caracteres en la descripción")
+                .extracting("field").isEqualTo("description");
+    }
+
+    @Test
     void photoMustBeAWebOrMediaLink() {
-        assertThatThrownBy(() -> Business.register(owner, "Taller", "Desc", "javascript:alert(1)", commune(1L),
+        assertThatThrownBy(() -> Business.register(owner, "Taller", Fixtures.BUSINESS_DESCRIPTION, "javascript:alert(1)", commune(1L),
                 List.of(service(1L))))
                 .isInstanceOf(ValidationException.class).extracting("field").isEqualTo("photoUrl");
     }
@@ -131,7 +140,7 @@ class BusinessTest {
     void substantiveEditRestartsTheReview() {
         Business business = approved();
 
-        business.edit("Hilos de Barrio", "Nueva descripción", null, commune(102L), List.of(service(4L), service(2L)), NOW);
+        business.edit("Hilos de Barrio", "Nueva descripción de la labor textil: ahora con arreglos a medida.", null, commune(102L), List.of(service(4L), service(2L)), NOW);
 
         assertThat(business.getStatus()).isEqualTo(BusinessStatus.PENDING);
         assertThat(business.getReviewRound()).isEqualTo(2);
@@ -143,7 +152,7 @@ class BusinessTest {
     void editWithoutChangesKeepsTheStatus() {
         Business business = approved();
 
-        business.edit(" Hilos de Barrio ", "Arreglos de ropa", "", commune(102L), List.of(service(4L), service(2L)), NOW);
+        business.edit(" Hilos de Barrio ", Fixtures.BUSINESS_DESCRIPTION, "", commune(102L), List.of(service(4L), service(2L)), NOW);
 
         assertThat(business.getStatus()).isEqualTo(BusinessStatus.APPROVED);
         assertThat(business.getReviewRound()).isEqualTo(1);
@@ -153,7 +162,7 @@ class BusinessTest {
     void reorderingServicesIsASubstantiveChange() {
         Business business = approved();
 
-        business.edit("Hilos de Barrio", "Arreglos de ropa", null, commune(102L), List.of(service(2L), service(4L)), NOW);
+        business.edit("Hilos de Barrio", Fixtures.BUSINESS_DESCRIPTION, null, commune(102L), List.of(service(2L), service(4L)), NOW);
 
         assertThat(business.getServices()).extracting(TextileService::getId).containsExactly(2L, 4L);
         assertThat(business.getStatus()).isEqualTo(BusinessStatus.PENDING);
@@ -163,11 +172,11 @@ class BusinessTest {
     void invalidEditLeavesTheBusinessUntouched() {
         Business business = approved();
 
-        assertThatThrownBy(() -> business.edit("Otro nombre", "Otra", null, commune(1L), List.of(), NOW))
+        assertThatThrownBy(() -> business.edit("Otro nombre", "Nueva descripción de la labor textil: ahora con arreglos a medida.", null, commune(1L), List.of(), NOW))
                 .isInstanceOf(ValidationException.class);
 
         assertThat(business.getName()).isEqualTo("Hilos de Barrio");
-        assertThat(business.getDescription()).isEqualTo("Arreglos de ropa");
+        assertThat(business.getDescription()).isEqualTo(Fixtures.BUSINESS_DESCRIPTION);
         assertThat(business.getCommune().getId()).isEqualTo(102L);
         assertThat(business.getStatus()).isEqualTo(BusinessStatus.APPROVED);
     }
@@ -213,7 +222,7 @@ class BusinessTest {
     }
 
     private Business approved() {
-        Business business = Business.register(owner, "Hilos de Barrio", "Arreglos de ropa", null, commune(102L),
+        Business business = Business.register(owner, "Hilos de Barrio", Fixtures.BUSINESS_DESCRIPTION, null, commune(102L),
                 List.of(service(4L), service(2L)));
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
         business.vote(administrator(), ReviewDecision.APPROVED, null, null, NOW);
@@ -222,12 +231,12 @@ class BusinessTest {
 
     @Test
     void retiredServiceAlreadyChosenDoesNotBlockOtherEdits() {
-        Business business = Business.register(owner, "Taller", "Desc", null, commune(1L), List.of(service(4L)));
+        Business business = Business.register(owner, "Taller", Fixtures.BUSINESS_DESCRIPTION, null, commune(1L), List.of(service(4L)));
 
-        business.edit("Taller", "Nueva descripción", null, commune(1L), List.of(retiredService(4L)), NOW);
+        business.edit("Taller", "Nueva descripción de la labor textil: ahora con arreglos a medida.", null, commune(1L), List.of(retiredService(4L)), NOW);
 
-        assertThat(business.getDescription()).isEqualTo("Nueva descripción");
-        assertThatThrownBy(() -> business.edit("Taller", "Desc", null, commune(1L), List.of(retiredService(5L)), NOW))
+        assertThat(business.getDescription()).isEqualTo("Nueva descripción de la labor textil: ahora con arreglos a medida.");
+        assertThatThrownBy(() -> business.edit("Taller", Fixtures.BUSINESS_DESCRIPTION, null, commune(1L), List.of(retiredService(5L)), NOW))
                 .hasMessage("Elige 1 o 2 servicios distintos");
     }
 

@@ -51,7 +51,8 @@ public class PersistedData {
     }
 
     public Business pendingBusiness(String name, String description, long communeId, Long... serviceIds) {
-        Business business = Business.register(entrepreneur(), name, description, null,
+        Business business = Business.register(entrepreneur(), name,
+                description.length() < 50 ? description + ". " + Fixtures.BUSINESS_DESCRIPTION : description, null,
                 em.find(Commune.class, communeId), services(serviceIds));
         em.persist(business);
         return business;

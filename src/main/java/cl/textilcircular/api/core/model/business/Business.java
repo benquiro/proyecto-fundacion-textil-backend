@@ -264,7 +264,8 @@ public class Business extends AuditedEntity {
                        List<TextileService> services) {
         // Validate everything first, so a rejected edit leaves the entity as it was.
         String validName = Validators.text("name", name, Validators.BUSINESS_NAME_MAX, "el nombre del emprendimiento");
-        String validDescription = Validators.text("description", description, Validators.BUSINESS_DESCRIPTION_MAX, "la descripción");
+        String validDescription = Validators.text("description", description, Validators.BUSINESS_DESCRIPTION_MIN,
+                Validators.BUSINESS_DESCRIPTION_MAX, "la descripción");
         String validPhoto = Validators.url("photoUrl", photoUrl, false, "la foto");
         Commune validCommune = Validators.required("communeId", commune, "Elige la comuna");
         List<TextileService> chosen = validServices(services);
